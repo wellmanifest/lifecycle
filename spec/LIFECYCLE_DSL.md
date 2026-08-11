@@ -33,6 +33,8 @@ prefix.
 
 1. A document declares exactly one `INITIAL` state.
    A bundle contains at least one document.
+   This validator implements version `1` and rejects every other document
+   version rather than guessing future semantics.
 2. State, event, evidence, and error identifiers are unique in their own
    namespaces. Lifecycle names and profile error codes are unique across a
    multi-document bundle.

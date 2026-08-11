@@ -52,6 +52,15 @@ class LifecycleValidationTests(unittest.TestCase):
         self.assertEqual(
             report.lifecycles[1].summary()["terminal_states"], ["CANCELLED", "DONE"]
         )
+        self.assertTrue(
+            any(
+                transition.source == "ACTIVE"
+                and transition.target == "ARCHIVED"
+                and transition.event == "ARCHIVE"
+                and transition.evidence == "OWNER_DISCARD_DECISION"
+                for transition in report.lifecycles[0].transitions
+            )
+        )
 
     def test_report_serialization_is_deterministic(self) -> None:
         first = lifecycle.validate_path(PROFILE_PATH, self.catalog).as_dict()
@@ -66,6 +75,12 @@ class LifecycleValidationTests(unittest.TestCase):
 
     def test_empty_bundle_is_rejected(self) -> None:
         self.assertIn("LFC-DOC-001", self.codes("# comments only\n"))
+
+    def test_unsupported_document_version_is_rejected(self) -> None:
+        text = document("TRANSITION START -> DONE ON COMPLETE").replace(
+            "VERSION 1", "VERSION 2"
+        )
+        self.assertIn("LFC-MODEL-001", self.codes(text))
 
     def test_duplicate_state_is_rejected(self) -> None:
         text = document("STATE START\nTRANSITION START -> DONE ON COMPLETE")

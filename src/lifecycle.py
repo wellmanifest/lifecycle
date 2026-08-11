@@ -396,11 +396,11 @@ def parse_bundle(text: str, emitter: Emitter) -> list[Lifecycle]:
             except ValueError:
                 version = 0
             current = Lifecycle(name=name, version=version, line=line_number)
-            if LIFECYCLE_NAME.fullmatch(name) is None or version < 1:
+            if LIFECYCLE_NAME.fullmatch(name) is None or version != 1:
                 emitter.emit(
                     "LFC-MODEL-001",
                     line_number,
-                    f"invalid lifecycle name or version: {name!r} v{tokens[3]!r}",
+                    f"invalid lifecycle name or unsupported version: {name!r} v{tokens[3]!r}",
                     name,
                 )
             continue

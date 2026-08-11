@@ -62,12 +62,15 @@ profiles; future deployment and service profiles should reuse the same core.
   was exhausted. A separately labeled deterministic baseline produced no code
   change plan; its review findings were linkage/heuristic findings, not proof
   of a lifecycle defect.
+- Published the ticket branch as private-repository pull request #1 and enabled
+  the no-bypass `main-governance-protection` ruleset matching the standard's
+  required Linux and Windows check names.
 
 ## Unfinished scope
 
-- Publish the current branch as a pull request and collect trusted review bound
-  to its current head. Merge and post-merge branch deletion remain outside the
-  agent's current authority.
+- Pull request #1 is open. Collect trusted review bound to its current head;
+  merge and post-merge branch deletion remain outside the agent's current
+  authority.
 - Deployment, service, release, and infrastructure profiles plus package
   publication remain separately bounded future work.
 

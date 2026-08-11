@@ -19,3 +19,5 @@
   empty bundles, CLI exits, and inert shell-like text.
 - Recorded an explicit failed-closed todo2code LLM-first audit and a separately
   labeled deterministic baseline.
+- Published private pull request #1 and activated the standard-aligned,
+  no-bypass `main-governance-protection` ruleset.

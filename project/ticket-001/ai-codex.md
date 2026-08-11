@@ -68,18 +68,18 @@ profiles; future deployment and service profiles should reuse the same core.
 
 ## Unfinished scope
 
-- Pull request #1 is open. Collect trusted review bound to its current head;
-  merge and post-merge branch deletion remain outside the agent's current
-  authority.
+- Pull request #1 is open. Collect trusted Validator review bound to its
+  current head, satisfy the protected checks, then perform the user-authorized
+  merge and post-merge ticket-branch cleanup.
 - Deployment, service, release, and infrastructure profiles plus package
   publication remain separately bounded future work.
 
 ## Blockers
 
 - Implementation and validation are not blocked.
-- Live semantic enrichment is unavailable until the configured LLM provider
-  limit resets or is increased. The failure is explicit and was not hidden by
-  fallback.
+- The initial provider-limit failure remains historical evidence, but the user
+  has increased the LLM budget. A new required-LLM audit must complete without
+  degradation before Validator review is dispatched.
 - Trusted current-head review is still required before merge. New authority
-  also remains required for destructive action, secret access, material
+  remains required for unrelated destructive action, secret access, material
   objective expansion and public visibility.

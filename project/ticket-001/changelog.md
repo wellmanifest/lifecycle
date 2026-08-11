@@ -23,3 +23,12 @@
   budget; Validator dispatch remains gated on a non-degraded result.
 - Published private pull request #1 and activated the standard-aligned,
   no-bypass `main-governance-protection` ruleset.
+- Completed a clean required-LLM todo2code comparison on exact head
+  `84372091e978ef7a0a2f4df66345ea8c2517810f`: markdown, documentation, and
+  communication used `z-ai/glm-5.2` without warnings or degradation; the one
+  real stale provider-limit statement was corrected before the final run.
+- Merged protected PR #1 as `3d3f9c7aaf5132a5249ed1da4c1548b0e16be36e`
+  after exact-head Validator approval and a green review-triggered governance
+  run; post-merge CI passed and the implementation branch was deleted.
+- Closed the delivered ticket as `DONE / DONE`; future profiles and bindings
+  remain explicit, separately bounded roadmap work.

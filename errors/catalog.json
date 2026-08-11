@@ -1,0 +1,86 @@
+{
+  "schema": "lifecycle.diagnostics/v1",
+  "version": 1,
+  "diagnostics": [
+    {
+      "code": "LFC-IO-001",
+      "severity": "ERROR",
+      "message": "Lifecycle input could not be read."
+    },
+    {
+      "code": "LFC-SYNTAX-001",
+      "severity": "ERROR",
+      "message": "Lifecycle input is not valid UTF-8."
+    },
+    {
+      "code": "LFC-SYNTAX-002",
+      "severity": "ERROR",
+      "message": "Lifecycle statement syntax is invalid."
+    },
+    {
+      "code": "LFC-DOC-001",
+      "severity": "ERROR",
+      "message": "Lifecycle document boundary is invalid."
+    },
+    {
+      "code": "LFC-DOC-002",
+      "severity": "ERROR",
+      "message": "Lifecycle name is duplicated in the bundle."
+    },
+    {
+      "code": "LFC-MODEL-001",
+      "severity": "ERROR",
+      "message": "Lifecycle identifier or scalar is invalid."
+    },
+    {
+      "code": "LFC-MODEL-002",
+      "severity": "ERROR",
+      "message": "Lifecycle declaration is duplicated."
+    },
+    {
+      "code": "LFC-MODEL-003",
+      "severity": "ERROR",
+      "message": "Lifecycle must declare exactly one initial state."
+    },
+    {
+      "code": "LFC-MODEL-004",
+      "severity": "ERROR",
+      "message": "Lifecycle statement references an undeclared symbol."
+    },
+    {
+      "code": "LFC-MODEL-005",
+      "severity": "ERROR",
+      "message": "State and event pair has more than one decision."
+    },
+    {
+      "code": "LFC-MODEL-006",
+      "severity": "ERROR",
+      "message": "Lifecycle state is unreachable from the initial state."
+    },
+    {
+      "code": "LFC-MODEL-007",
+      "severity": "ERROR",
+      "message": "Terminal state has an outgoing transition."
+    },
+    {
+      "code": "LFC-ERROR-001",
+      "severity": "ERROR",
+      "message": "Profile error declaration is invalid."
+    },
+    {
+      "code": "LFC-ERROR-002",
+      "severity": "ERROR",
+      "message": "Profile error binding is unresolved or unused."
+    },
+    {
+      "code": "LFC-ERROR-003",
+      "severity": "ERROR",
+      "message": "Profile error code is duplicated in the bundle."
+    },
+    {
+      "code": "LFC-CATALOG-001",
+      "severity": "CRITICAL",
+      "message": "Core diagnostic catalog is invalid."
+    }
+  ]
+}

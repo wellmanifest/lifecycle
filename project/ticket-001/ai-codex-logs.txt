@@ -8,6 +8,22 @@ docker engine: 29.1.3
 ./project/governance-check.sh --actor agent --changed-file project/TICKETS.md
 GOV-PASS: passed (0 errors, 0 warnings)
 
+[2026-08-11 publication]
+repository: subactor/lifecycle
+visibility: PRIVATE
+default branch: main
+delete branch on merge: true
+pull request: #1
+head before publication-evidence commit: 04199f7600596ca8144c242ba50951dfcf3a8b0e
+base: main at 2c5bedb62b7d505933c6a23c9c0336d18eef4e98
+ruleset: main-governance-protection (active, no bypass actors)
+rules: pull request required, one independent approval, stale approvals
+dismissed on push, last-push approval required, review threads resolved,
+non-fast-forward and deletion blocked
+required checks: test, windows-governance (strict)
+initial PR-head checks before this evidence-only commit: PASS on Linux and
+Windows for both push and pull_request events
+
 [2026-08-11 bootstrap container]
 docker compose config --quiet
 PASS
@@ -15,3 +31,88 @@ docker build -t subactor-lifecycle-bootstrap:0.1.0-dev .
 image: sha256:39b85b1c4bdff7264556b7249dc690159475d3318ea75525380013b2e7ee75de
 docker run --rm --network none subactor-lifecycle-bootstrap:0.1.0-dev
 bootstrap: no tests yet
+
+[2026-08-11 delivery activation]
+accepted base: 2c5bedb62b7d505933c6a23c9c0336d18eef4e98
+branch: ticket/001-lifecycle-dsl-v1
+status: IN_PROGRESS / EDIT
+
+[2026-08-11 implementation]
+implementation commit: 9446745
+gap-fix commit: 6400c09
+implementation files: 5
+- spec/LIFECYCLE_DSL.md
+- src/lifecycle.py
+- errors/catalog.json
+- profiles/reference.lifecycle
+- tests/test_lifecycle.py
+
+[2026-08-11 host validation]
+PYTHONPATH=src python -m unittest discover -s tests -v
+Ran 19 tests
+OK
+
+PYTHONPATH=src python -m lifecycle validate profiles/reference.lifecycle
+VALID git-branch v1 states=7 events=8 transitions=11 rejects=3
+VALID governed-ticket v1 states=6 events=6 transitions=9 rejects=3
+PASS profiles/reference.lifecycle: 2 lifecycle(s)
+
+ruff format --check src/lifecycle.py tests/test_lifecycle.py
+PASS
+ruff check src/lifecycle.py tests/test_lifecycle.py
+PASS
+mypy --strict src/lifecycle.py
+Success: no issues found in 1 source file
+python -m py_compile src/lifecycle.py tests/test_lifecycle.py
+PASS
+git diff --check
+PASS
+
+[2026-08-11 corrected validation attempts]
+The initial unittest module-form command could not import tests.test_lifecycle
+because tests is not a package. intent.json now uses unittest discovery.
+Strict mypy initially detected four variable-shadowing errors; the variables
+were renamed and the exact implementation passes strict mypy.
+
+[2026-08-11 todo2code intent audit]
+runtime: todo2code 0.5.0
+source branch revision: 732e541
+LLM-first modes: NL=require-llm, Markdown=require-llm,
+communication=require-llm, task synthesis=require-llm,
+documentation LLM enabled, summary LLM enabled
+status: FAILED_CLOSED
+stage: naturalLanguageExtraction
+code: LLM_UNAVAILABLE
+reason: configured provider weekly key limit exhausted
+fallback: none in the required-LLM run
+
+Separate deterministic baseline: SUCCEEDED
+graph fingerprint: 5eac462ede220dbeecfa8b7223d4a09a8aaf07189acb5e4eef069a3019adff52
+diagnostics: 500 advisory records across the full governed repository
+grounded conclusions: 14 review_required, 86 warning
+code-change plans: 0
+review disposition: findings were dominated by governance-package AST symbols,
+line-split preprompt requirements, future TODO items, and the absence of a
+human-owned participant file that policy forbids the agent to synthesize.
+The one bootstrap evidence claim now names commit 2c5bedb. Manual review around
+the audit added fail-closed version handling and the owner-authorized active
+Git-branch archival path, both covered by regression tests.
+
+[2026-08-11 container validation]
+docker compose build test
+PASS
+docker compose run --rm test
+ENVIRONMENT FAILURE: Docker daemon reported all predefined address pools fully
+subnetted. No unrelated Docker networks were pruned without owner authority.
+
+docker build --tag lifecycle-ticket001:exact-head .
+image: sha256:58a5eafdece3dadae71dc2f073a51a0276af01e7626414314bc680c165e9a7cf
+docker run --rm --network none lifecycle-ticket001:exact-head
+Ran 19 tests
+OK
+docker run --rm --network none lifecycle-ticket001:exact-head python -m lifecycle validate profiles/reference.lifecycle
+PASS profiles/reference.lifecycle: 2 lifecycle(s)
+
+[2026-08-11 implementation governance]
+./project/governance-check.sh --actor agent --base 2c5bedb62b7d505933c6a23c9c0336d18eef4e98 --head HEAD
+GOV-PASS: passed (0 errors, 0 warnings)

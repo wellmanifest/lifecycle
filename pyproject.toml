@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lifecycle-dsl"
+version = "0.1.0.dev0"
+description = "Deterministic lifecycle DSL, validator, diagnostics, and reference profiles."
+requires-python = ">=3.12"
+license = "Apache-2.0"
+authors = [{ name = "Subactor" }]
+dependencies = []
+
+[project.scripts]
+lifecycle = "lifecycle:main"
+
+[tool.setuptools]
+py-modules = ["lifecycle"]
+package-dir = {"" = "src"}

@@ -1,0 +1,17 @@
+[2026-08-11 bootstrap]
+new-project source revision: 3549d21a5a31fea87b2dd4da37d8e8bd793f20f6
+new-project version: 0.14.1
+adoption: PASS
+docker engine: 29.1.3
+
+[2026-08-11 bootstrap governance]
+./project/governance-check.sh --actor agent --changed-file project/TICKETS.md
+GOV-PASS: passed (0 errors, 0 warnings)
+
+[2026-08-11 bootstrap container]
+docker compose config --quiet
+PASS
+docker build -t subactor-lifecycle-bootstrap:0.1.0-dev .
+image: sha256:39b85b1c4bdff7264556b7249dc690159475d3318ea75525380013b2e7ee75de
+docker run --rm --network none subactor-lifecycle-bootstrap:0.1.0-dev
+bootstrap: no tests yet

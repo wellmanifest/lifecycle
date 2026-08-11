@@ -1,0 +1,26 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-001",
+  "summary": "Standardize Lifecycle DSL v1",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "allowedPaths": [
+    "project/ticket-001/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "spec/LIFECYCLE_DSL.md",
+    "src/lifecycle.py",
+    "errors/catalog.json",
+    "profiles/reference.lifecycle",
+    "tests/test_lifecycle.py"
+  ],
+  "forbiddenPaths": ["project/ticket-*/user-*.md"],
+  "stacks": ["python", "docker"],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null
+}

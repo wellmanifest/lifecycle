@@ -1,0 +1,5 @@
+services:
+  test:
+    build:
+      context: .
+    command: ["sh", "-c", "if [ -d tests ]; then python3 -m unittest discover -s tests -v; else echo 'bootstrap: no tests yet'; fi"]

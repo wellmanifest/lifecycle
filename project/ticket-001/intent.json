@@ -66,7 +66,7 @@
       },
       {
         "criterion": "AC-02",
-        "commands": ["PYTHONPATH=src python3 -m unittest tests.test_lifecycle"],
+        "commands": ["PYTHONPATH=src python3 -m unittest discover -s tests -v"],
         "evidence": "project/ticket-001/ai-codex-logs.txt"
       },
       {

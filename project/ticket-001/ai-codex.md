@@ -36,8 +36,10 @@ profiles; future deployment and service profiles should reuse the same core.
 - Creating the requested private `subactor/lifecycle` repository, its initial
   bootstrap, ticket branch, and reviewable pull request are safe prerequisites
   of that objective.
-- Destructive operations, secret access, public visibility, registry release,
-  and trusted merge approval are not authorized.
+- At ticket creation, destructive operations, secret access, public visibility,
+  registry release, and trusted merge approval were not authorized. The later
+  user continuation authorized publication and branch cleanup; trusted approval
+  still came independently from Validator.
 
 ## Actual changes
 
@@ -65,21 +67,25 @@ profiles; future deployment and service profiles should reuse the same core.
 - Published the ticket branch as private-repository pull request #1 and enabled
   the no-bypass `main-governance-protection` ruleset matching the standard's
   required Linux and Windows check names.
+- Re-ran todo2code on exact clean head
+  `84372091e978ef7a0a2f4df66345ea8c2517810f`. Required-LLM markdown,
+  documentation, and communication stages all succeeded with `z-ai/glm-5.2`,
+  zero extraction warnings, and no degradation. The stale provider-limit
+  blocker was corrected; remaining generated plans were evidence-linking
+  heuristics or explicitly deferred scope.
+- Validator run `31540070900` approved the same head after five GLM review
+  chunks with no actionable finding. The review-triggered governance run
+  passed, protected PR #1 merged as
+  `3d3f9c7aaf5132a5249ed1da4c1548b0e16be36e`, post-merge CI passed, and the
+  implementation branch was deleted.
 
 ## Unfinished scope
 
-- Pull request #1 is open. Collect trusted Validator review bound to its
-  current head, satisfy the protected checks, then perform the user-authorized
-  merge and post-merge ticket-branch cleanup.
-- Deployment, service, release, and infrastructure profiles plus package
-  publication remain separately bounded future work.
+- None for ticket-001. Deployment, service, release, and infrastructure
+  profiles plus package publication remain separately bounded future work.
 
 ## Blockers
 
-- Implementation and validation are not blocked.
-- The initial provider-limit failure remains historical evidence, but the user
-  has increased the LLM budget. A new required-LLM audit must complete without
-  degradation before Validator review is dispatched.
-- Trusted current-head review is still required before merge. New authority
-  remains required for unrelated destructive action, secret access, material
-  objective expansion and public visibility.
+- None inside the completed ticket. New authority remains required for
+  unrelated destructive action, secret access, material objective expansion,
+  and public visibility.

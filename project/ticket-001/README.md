@@ -3,7 +3,7 @@
 - **ID**: ticket-001
 - **Owner**: unresolved:human
 - **Status**: IN_PROGRESS
-- **Workflow state**: EDIT
+- **Workflow state**: PUBLICATION
 - **Created**: 2026-08-11
 
 ## Goal and scope
@@ -16,20 +16,20 @@ executes lifecycle transitions.
 
 ## Acceptance criteria
 
-- [ ] AC-01: The public specification defines declarations, transitions,
+- [x] AC-01: The public specification defines declarations, transitions,
   evidence requirements, reject rules, errors, document boundaries, and exit
   behavior without domain-specific assumptions.
-- [ ] AC-02: The validator rejects syntax errors, duplicate declarations,
+- [x] AC-02: The validator rejects syntax errors, duplicate declarations,
   unresolved references, nondeterministic state/event pairs, unreachable
   states, invalid terminal transitions, and incorrect error bindings with
   stable `LFC-*` diagnostics.
-- [ ] AC-03: Text and JSON output are deterministic and invalid input exits 1;
+- [x] AC-03: Text and JSON output are deterministic and invalid input exits 1;
   unexpected internal failure remains distinct at exit 2.
-- [ ] AC-04: The reference bundle validates independent Git-branch and governed
+- [x] AC-04: The reference bundle validates independent Git-branch and governed
   ticket lifecycles, including evidence-gated destructive or terminal actions.
-- [ ] AC-05: Positive and negative tests pass on the host and in the pinned,
+- [x] AC-05: Positive and negative tests pass on the host and in the pinned,
   networkless Docker image.
-- [ ] AC-06: Adopted `new-project` governance passes with zero errors and the
+- [x] AC-06: Adopted `new-project` governance passes with zero errors and the
   implementation changes exactly the five files budgeted by this ticket.
 
 ## Risks

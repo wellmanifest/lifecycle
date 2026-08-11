@@ -8,3 +8,5 @@
   budget, acceptance criteria, risks, and deterministic validation plan.
 - Bootstrapped immutable governance, Docker, Python metadata, architecture, and
   CI before implementation.
+- Activated the ticket on its isolated branch with a bounded S delivery
+  contract pinned to bootstrap base `2c5bedb62b7d505933c6a23c9c0336d18eef4e98`.

@@ -15,3 +15,8 @@ docker build -t subactor-lifecycle-bootstrap:0.1.0-dev .
 image: sha256:39b85b1c4bdff7264556b7249dc690159475d3318ea75525380013b2e7ee75de
 docker run --rm --network none subactor-lifecycle-bootstrap:0.1.0-dev
 bootstrap: no tests yet
+
+[2026-08-11 delivery activation]
+accepted base: 2c5bedb62b7d505933c6a23c9c0336d18eef4e98
+branch: ticket/001-lifecycle-dsl-v1
+status: IN_PROGRESS / EDIT

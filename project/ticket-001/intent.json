@@ -8,6 +8,89 @@
     "priority": "P1",
     "origin": "requested"
   },
+  "delivery": {
+    "acceptedBaseSha": "2c5bedb62b7d505933c6a23c9c0336d18eef4e98",
+    "targetBranch": "main",
+    "outcome": "Lifecycle DSL v1 has a deterministic validator, stable diagnostics, and validated Git-branch plus governed-ticket reference lifecycles.",
+    "nonGoals": [
+      "Execute Git, ticket, deployment, service, or release mutations",
+      "Add runtime dependencies or network access",
+      "Implement LLM authoring or treat model output as validation authority",
+      "Publish a registry package or make the repository public",
+      "Merge without independent trusted current-head approval"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Use a dependency-free line parser and semantic graph validator whose stable core diagnostics validate multiple domain profiles without executing their transitions.",
+      "components": [
+        {
+          "name": "lifecycle-core",
+          "paths": [
+            "spec/LIFECYCLE_DSL.md",
+            "src/lifecycle.py",
+            "errors/catalog.json"
+          ]
+        },
+        {
+          "name": "reference-profiles",
+          "paths": [
+            "profiles/reference.lifecycle",
+            "tests/test_lifecycle.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the five implementation files while preserving ticket and bootstrap evidence."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": ["review spec/LIFECYCLE_DSL.md against both reference documents"],
+        "evidence": "project/ticket-001/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": ["PYTHONPATH=src python3 -m unittest tests.test_lifecycle"],
+        "evidence": "project/ticket-001/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": ["PYTHONPATH=src python3 -m lifecycle validate profiles/reference.lifecycle --format json"],
+        "evidence": "project/ticket-001/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-04",
+        "commands": ["PYTHONPATH=src python3 -m lifecycle validate profiles/reference.lifecycle"],
+        "evidence": "project/ticket-001/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-05",
+        "commands": ["docker compose run --rm test", "docker run --rm --network none lifecycle-ticket001"],
+        "evidence": "project/ticket-001/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-06",
+        "commands": ["./project/governance-check.sh --actor agent --base 2c5bedb62b7d505933c6a23c9c0336d18eef4e98 --head HEAD", "git diff --check"],
+        "evidence": "project/ticket-001/ai-codex-logs.txt"
+      }
+    ]
+  },
   "allowedPaths": [
     "project/ticket-001/**",
     "TODO.md",

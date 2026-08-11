@@ -50,8 +50,8 @@ profiles; future deployment and service profiles should reuse the same core.
 
 ## Unfinished scope
 
-- The five implementation files, validations, remote repository, branch, and
-  pull request remain to be completed after the bootstrap base commit.
+- The private remote and immutable bootstrap base are complete. The five
+  implementation files, exact-head validations, and pull request remain.
 
 ## Blockers
 

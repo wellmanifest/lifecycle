@@ -16,17 +16,17 @@ core boundary: the DSL describes lifecycle decisions but never executes them.
 
 ## Acceptance criteria
 
-- [ ] AC-01: One Lifecycle DSL bundle represents Git, ticket, legal, product,
+- [x] AC-01: One Lifecycle DSL bundle represents Git, ticket, legal, product,
   SaaS and Twin lifecycle graphs without importing their domain payloads.
-- [ ] AC-02: The reference validator accepts the ecosystem bundle and tests
+- [x] AC-02: The reference validator accepts the ecosystem bundle and tests
   bind every expected lifecycle, initial/terminal state and representative
   feedback transition.
-- [ ] AC-03: A byte-identical copy of `src/lifecycle.py` works without the
+- [x] AC-03: A byte-identical copy of `src/lifecycle.py` works without the
   repository error catalog while explicit catalog validation remains supported.
-- [ ] AC-04: The specification records reusable findings from the domain
+- [x] AC-04: The specification records reusable findings from the domain
   standards and current public workflow/state-machine specifications while
   keeping execution, retries, timeouts and authority outside Lifecycle DSL v1.
-- [ ] AC-05: Unit, static, container and adopted governance checks pass with no
+- [x] AC-05: Unit, static, container and adopted governance checks pass with no
   runtime dependency or network access.
 
 ## Risks

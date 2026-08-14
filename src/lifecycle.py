@@ -38,6 +38,48 @@ REQUIRED_CORE_CODES = {
     "LFC-ERROR-003",
     "LFC-CATALOG-001",
 }
+EMBEDDED_CATALOG_ROWS = (
+    ("LFC-IO-001", "ERROR", "Lifecycle input could not be read."),
+    ("LFC-SYNTAX-001", "ERROR", "Lifecycle input is not valid UTF-8."),
+    ("LFC-SYNTAX-002", "ERROR", "Lifecycle statement syntax is invalid."),
+    ("LFC-DOC-001", "ERROR", "Lifecycle document boundary is invalid."),
+    ("LFC-DOC-002", "ERROR", "Lifecycle name is duplicated in the bundle."),
+    ("LFC-MODEL-001", "ERROR", "Lifecycle identifier or scalar is invalid."),
+    ("LFC-MODEL-002", "ERROR", "Lifecycle declaration is duplicated."),
+    (
+        "LFC-MODEL-003",
+        "ERROR",
+        "Lifecycle must declare exactly one initial state.",
+    ),
+    (
+        "LFC-MODEL-004",
+        "ERROR",
+        "Lifecycle statement references an undeclared symbol.",
+    ),
+    (
+        "LFC-MODEL-005",
+        "ERROR",
+        "State and event pair has more than one decision.",
+    ),
+    (
+        "LFC-MODEL-006",
+        "ERROR",
+        "Lifecycle state is unreachable from the initial state.",
+    ),
+    ("LFC-MODEL-007", "ERROR", "Terminal state has an outgoing transition."),
+    ("LFC-ERROR-001", "ERROR", "Profile error declaration is invalid."),
+    (
+        "LFC-ERROR-002",
+        "ERROR",
+        "Profile error binding is unresolved or unused.",
+    ),
+    (
+        "LFC-ERROR-003",
+        "ERROR",
+        "Profile error code is duplicated in the bundle.",
+    ),
+    ("LFC-CATALOG-001", "CRITICAL", "Core diagnostic catalog is invalid."),
+)
 
 
 class CatalogError(RuntimeError):
@@ -49,6 +91,18 @@ class CatalogEntry:
     code: str
     severity: str
     message: str
+
+
+def embedded_catalog() -> dict[str, CatalogEntry]:
+    """Return the trusted catalog bundled with the standalone validator."""
+
+    result = {
+        code: CatalogEntry(code, severity, message)
+        for code, severity, message in EMBEDDED_CATALOG_ROWS
+    }
+    if set(result) != REQUIRED_CORE_CODES:
+        raise CatalogError("LFC-CATALOG-001: embedded diagnostic set is invalid")
+    return result
 
 
 @dataclass(frozen=True)
@@ -664,7 +718,7 @@ def default_catalog_path() -> Path:
 def main(argv: list[str] | None = None) -> int:
     try:
         args = _parser().parse_args(argv)
-        catalog = load_catalog(args.catalog or default_catalog_path())
+        catalog = load_catalog(args.catalog) if args.catalog else embedded_catalog()
         report = validate_path(args.path, catalog)
         if args.format == "json":
             print(json.dumps(report.as_dict(), indent=2, sort_keys=True))

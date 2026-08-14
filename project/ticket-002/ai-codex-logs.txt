@@ -1,0 +1,22 @@
+2026-08-14T09:08:00+02:00 AUDIT
+- Existing domain suites passed before projection: git 8, ticket 8, legal 13,
+  product 10, SaaS 45 plus 3 adapter profiles, Twin 24 adversarial cases.
+- The domain repositories preserve payload/effect semantics; the common bundle
+  is therefore explicitly a compatibility projection.
+
+2026-08-14T09:09:00+02:00 VALIDATION
+- `python3 src/lifecycle.py validate profiles/wellmanifest-ecosystem.lifecycle --format json`
+  returned `status=valid`, `lifecycle_count=6`, and no diagnostics.
+- The first unittest invocation omitted `PYTHONPATH=src`; the first mypy run
+  also exposed a missing class-variable annotation. Both invocation/code issues
+  were corrected before the final evidence run.
+
+2026-08-14T09:10:00+02:00 FINAL-EVIDENCE
+- `PYTHONPATH=src python3 -m unittest discover -s tests -v`: 21 passed.
+- `python3 -m ruff check .`: passed.
+- `MYPYPATH=src python3 -m mypy src tests`: passed, 2 source files.
+- `python3 -m compileall -q src tests`: passed.
+- `./project/governance-check.sh`: GOV-PASS, 0 errors, 0 warnings.
+- `docker build -t lifecycle-ticket002-ci .`: passed with pinned base image.
+- `docker run --rm --network none lifecycle-ticket002-ci`: 21 passed.
+- No runtime dependency and no network access were introduced.

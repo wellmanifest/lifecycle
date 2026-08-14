@@ -39,6 +39,15 @@ profiles without turning v1 into an executor.
 
 - Initialized the bounded ticket and recorded SESSION_EXECUTION_AUTHORIZATION
   from the request to execute this work.
+- Added a six-document compatibility projection for Git, governed tickets,
+  legal obligations, product releases, SaaS tenants and Twin stages.
+- Embedded the closed diagnostic catalog in the dependency-free validator so
+  one byte-pinned file can validate profiles offline; an explicit catalog is
+  still accepted and tested for exact equality.
+- Recorded the domain-derived evolution boundary and primary state/workflow
+  references without adding execution semantics to Lifecycle DSL v1.
+- Added deterministic boundary, feedback-loop and isolated-copy tests, then
+  passed host, Ruff, mypy, compile, governance and networkless-container gates.
 
 ## Blockers
 

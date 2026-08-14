@@ -79,6 +79,60 @@ END
 A bundle is valid only when every document and all bundle-wide uniqueness rules
 are valid.
 
+## Ecosystem projection boundary
+
+This section is informative. The bundle in
+`profiles/wellmanifest-ecosystem.lifecycle` projects the state vocabularies of
+the Git, ticket, legal, product, SaaS, and Twin standards into one common
+graph language. A projection demonstrates structural compatibility; it does
+not replace the owning standard's payload schema, conformance rules, effects,
+or authorization policy.
+
+The current domain standards expose six reusable design lessons:
+
+1. Commands that can change state and read-only queries must remain distinct.
+2. Evidence names are stable bindings to proof; receipts carry the actual
+   effect and replay record.
+3. Feedback loops and idempotent self-transitions are valid lifecycle edges,
+   so v1 intentionally permits cycles and self-transitions.
+4. One aggregate lifecycle may summarize several independently observed
+   sub-states, but must not claim success before all required observations
+   agree.
+5. Approval roles describe expected evidence; a validated graph never grants
+   the authority represented by that evidence.
+6. Domain policy may define retries, timeouts, compensation, or execution, but
+   those concerns are not Lifecycle DSL v1 statements.
+
+A domain standard may adopt the validator as a byte-pinned standalone file and
+publish a local profile. Its own conformance suite should verify that the
+profile uses the domain's state vocabulary, matches every documented edge, and
+does not widen the operations authorized by the domain contract. A
+compatibility projection may name an
+externally observed event solely to make a declared state reachable; that event
+must be documented as an observation, not exposed as a new command.
+
+Potential evolution belongs in separately versioned profiles or language
+versions. The ecosystem results justify exploring typed command/query/event
+classes, multiple entry/exit criteria, repeatability, event/receipt mappings,
+and orthogonal lifecycle composition. They do not justify adding an executor,
+embedded scripts, transport envelopes, retry policy, timeouts, or authority to
+v1.
+
+For comparison, SCXML 1.0 defines hierarchical, parallel, and history states
+as well as executable content; Amazon States Language includes execution
+concerns such as retry, catch, and timeout; the Open Workflow Specification
+defines workflow tasks and lifecycle events; and CloudEvents defines an event
+envelope. Lifecycle DSL deliberately uses only the smaller deterministic graph
+intersection. Consumers that need the other concerns should bind those
+standards at an adapter boundary instead of duplicating them here.
+
+Primary references:
+
+- <https://www.w3.org/TR/scxml/>
+- <https://states-language.net/spec.html>
+- <https://github.com/open-workflow-specification/specification>
+- <https://github.com/cloudevents/spec>
+
 ## Diagnostics
 
 Core validator diagnostics are defined by `errors/catalog.json` using schema

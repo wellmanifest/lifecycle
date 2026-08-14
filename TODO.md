@@ -2,6 +2,11 @@
 
 ## Active
 
+- [ ] [`ticket-002`](project/ticket-002/README.md): validate all current
+  Wellmanifest lifecycle domains against the general Lifecycle DSL, publish a
+  multi-domain projection bundle and make its reference validator independently
+  pinnable for offline adoption.
+
 - [x] [`ticket-001`](project/ticket-001/README.md): define Lifecycle DSL v1,
   implement its deterministic validator and stable error catalog, and prove
   the Git branch and governed-ticket profiles.

@@ -1,0 +1,103 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-002",
+  "summary": "Validate lifecycle ecosystem conformance",
+  "workstream": "application",
+  "classification": {
+    "kind": "FEATURE",
+    "priority": "P1",
+    "origin": "requested"
+  },
+  "delivery": {
+    "acceptedBaseSha": "f3b8e13eb17128fd0f3ff05ac45fc99c99c470c4",
+    "targetBranch": "main",
+    "outcome": "Lifecycle DSL v1 has a validated six-domain ecosystem projection and a byte-pinnable standalone validator, with evolution findings separated from execution semantics.",
+    "nonGoals": [
+      "Execute lifecycle transitions or add a workflow runtime",
+      "Change the Lifecycle DSL v1 grammar incompatibly",
+      "Replace domain schemas, GBNF contracts or conformance validators",
+      "Add retries, timeouts, scripts, secrets or authority to lifecycle documents",
+      "Modify any sibling lifecycle repository in this ticket",
+      "Merge without independent trusted current-head approval"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 25,
+    "budgets": {
+      "maxImplementationFiles": 4,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Keep Lifecycle DSL v1 domain-neutral, add one multi-document projection bundle, and embed the trusted diagnostic catalog in the dependency-free validator so adopters can pin and run one file offline.",
+      "components": [
+        {
+          "name": "lifecycle-core",
+          "paths": [
+            "spec/LIFECYCLE_DSL.md",
+            "src/lifecycle.py",
+            "tests/test_lifecycle.py"
+          ]
+        },
+        {
+          "name": "ecosystem-projections",
+          "paths": [
+            "profiles/wellmanifest-ecosystem.lifecycle"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the ecosystem profile, embedded catalog fallback, tests and specification guidance together."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": ["PYTHONPATH=src python3 -m lifecycle validate profiles/wellmanifest-ecosystem.lifecycle --format json"],
+        "evidence": "project/ticket-002/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": ["PYTHONPATH=src python3 -m unittest discover -s tests -v"],
+        "evidence": "project/ticket-002/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": ["copy src/lifecycle.py to an isolated directory and validate the ecosystem profile without errors/catalog.json"],
+        "evidence": "project/ticket-002/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-04",
+        "commands": ["review spec/LIFECYCLE_DSL.md against sibling standards and cited primary specifications"],
+        "evidence": "project/ticket-002/ai-codex-logs.txt"
+      },
+      {
+        "criterion": "AC-05",
+        "commands": ["docker build -t lifecycle-ticket002 .", "docker run --rm --network none lifecycle-ticket002", "./project/governance-check.sh --actor agent --base f3b8e13eb17128fd0f3ff05ac45fc99c99c470c4 --head HEAD", "git diff --check"],
+        "evidence": "project/ticket-002/ai-codex-logs.txt"
+      }
+    ]
+  },
+  "allowedPaths": [
+    "project/ticket-002/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "spec/LIFECYCLE_DSL.md",
+    "src/lifecycle.py",
+    "profiles/wellmanifest-ecosystem.lifecycle",
+    "tests/test_lifecycle.py"
+  ],
+  "forbiddenPaths": ["project/ticket-*/user-*.md"],
+  "stacks": [],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null
+}

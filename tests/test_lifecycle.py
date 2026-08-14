@@ -84,7 +84,7 @@ class LifecycleValidationTests(unittest.TestCase):
         expected_boundaries = {
             "git-repository": ("UNINITIALIZED", ["TERMINAL"]),
             "governed-ticket": ("UNALLOCATED", ["DONE"]),
-            "legal-obligation": ("UNBOUND", ["DENIED", "EXPIRED"]),
+            "legal-obligation": ("UNBOUND", ["DENIED", "WITHDRAWN"]),
             "product-release": ("DRAFT", ["SUNSET"]),
             "saas-tenant": ("REQUESTED", ["CANCELLED", "EXPIRED", "FAILED"]),
             "twin-stage": ("CONCEPT", ["RETIRED"]),
@@ -94,6 +94,22 @@ class LifecycleValidationTests(unittest.TestCase):
                 summary = by_name[name].summary()
                 self.assertEqual(summary["initial_state"], initial)
                 self.assertEqual(summary["terminal_states"], terminals)
+        self.assertTrue(
+            any(
+                item.source == "EXPIRED"
+                and item.target == "BOUND"
+                and item.event == "BIND_JURISDICTION"
+                for item in by_name["legal-obligation"].transitions
+            )
+        )
+        self.assertTrue(
+            any(
+                item.source == "DRAFT"
+                and item.target == "GENERALLY_AVAILABLE"
+                and item.event == "RELEASE"
+                for item in by_name["product-release"].transitions
+            )
+        )
         self.assertTrue(
             any(
                 item.source == "ACTIVE"

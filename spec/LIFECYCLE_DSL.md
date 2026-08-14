@@ -105,8 +105,9 @@ The current domain standards expose six reusable design lessons:
 
 A domain standard may adopt the validator as a byte-pinned standalone file and
 publish a local profile. Its own conformance suite should verify that the
-profile uses the domain's state vocabulary and does not widen the operations
-authorized by the domain contract. A compatibility projection may name an
+profile uses the domain's state vocabulary, matches every documented edge, and
+does not widen the operations authorized by the domain contract. A
+compatibility projection may name an
 externally observed event solely to make a declared state reachable; that event
 must be documented as an observation, not exposed as a new command.
 

@@ -20,3 +20,12 @@
 - `docker build -t lifecycle-ticket002-ci .`: passed with pinned base image.
 - `docker run --rm --network none lifecycle-ticket002-ci`: 21 passed.
 - No runtime dependency and no network access were introduced.
+
+2026-08-14T09:16:00+02:00 SEMANTIC-CROSS-CHECK
+- A second comparison against each owning repository's documented graph found
+  that syntax-only validation was insufficient: the initial legal terminal
+  classification, four product edges, and several SaaS edges did not match the
+  domain diagrams exactly.
+- The projection was corrected to the owning diagrams. Regression assertions
+  now cover legal rebind, direct product release, SaaS add-on self-transition,
+  and Twin stabilization feedback.

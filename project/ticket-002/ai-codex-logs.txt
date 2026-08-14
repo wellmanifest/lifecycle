@@ -29,3 +29,5 @@
 - The projection was corrected to the owning diagrams. Regression assertions
   now cover legal rebind, direct product release, SaaS add-on self-transition,
   and Twin stabilization feedback.
+- The final SaaS comparison also removed an undocumented direct trial-to-paid
+  edge; conversion now follows only the owner-documented trial-expiring path.

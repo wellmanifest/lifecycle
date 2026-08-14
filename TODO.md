@@ -2,7 +2,7 @@
 
 ## Active
 
-- [ ] [`ticket-002`](project/ticket-002/README.md): validate all current
+- [x] [`ticket-002`](project/ticket-002/README.md): validate all current
   Wellmanifest lifecycle domains against the general Lifecycle DSL, publish a
   multi-domain projection bundle and make its reference validator independently
   pinnable for offline adoption.

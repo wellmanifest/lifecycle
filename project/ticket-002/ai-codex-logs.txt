@@ -31,3 +31,11 @@
   and Twin stabilization feedback.
 - The final SaaS comparison also removed an undocumented direct trial-to-paid
   edge; conversion now follows only the owner-documented trial-expiring path.
+
+2026-08-14T09:30:00+02:00 PUBLICATION
+- pull request: https://github.com/wellmanifest/lifecycle/pull/3
+- exact reusable source revision: 4b5e131a670afb46ca87291479fed7c0fefcf370
+- pull_request CI at that source revision: Linux test PASS, Windows governance
+  PASS; the push-event incremental-base runs are non-gating and reported the
+  expected stale-base diagnostic after a follow-up commit.
+- trusted current-head review and integration remain pending.

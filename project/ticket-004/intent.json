@@ -1,0 +1,89 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-004",
+  "summary": "Lifecycle DSL compaction constructs and audit",
+  "workstream": "application",
+  "classification": {
+    "kind": "SERVICE",
+    "priority": "P2",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-004/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "profiles/reference.lifecycle",
+    "profiles/wellmanifest-ecosystem.lifecycle",
+    "spec/LIFECYCLE_DSL.md",
+    "src/lifecycle.py",
+    "tests/test_lifecycle.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "93c6f1340023887cfe89a30fbab7c1cb078a5d10",
+    "targetBranch": "main",
+    "outcome": "Extend Lifecycle DSL v1 with deterministic compact constructs (STATES, EVENTS, EVIDENCES, state-set TRANSITION, state-set REJECT), add static compaction analyzer (lifecycle audit), and compact reference and ecosystem profiles.",
+    "nonGoals": [
+      "No breaking changes to lifecycle.validation/v1 or lifecycle.diagnostics/v1 schemas",
+      "No runtime command execution or shell interpolation"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 30,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Desugar compact lifecycle constructs (STATES, EVENTS, EVIDENCES, state-set TRANSITION, state-set REJECT) at parse time into canonical Lifecycle model items and provide static compaction audit diagnostics.",
+      "components": [
+        {
+          "name": "lifecycle-dsl-parser-and-profiles",
+          "paths": [
+            "src/lifecycle.py",
+            "spec/LIFECYCLE_DSL.md",
+            "profiles/reference.lifecycle",
+            "profiles/wellmanifest-ecosystem.lifecycle",
+            "tests/test_lifecycle.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the ticket branch commit or close the pull request before merge."
+    },
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "pytest -q"
+        ],
+        "evidence": "project/ticket-004/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh"
+        ],
+        "evidence": "project/ticket-004/README.md"
+      }
+    ],
+    "runtimeDependencies": []
+  }
+}

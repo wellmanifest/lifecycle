@@ -271,6 +271,114 @@ END
                 )
         self.assertEqual(result, 1)
 
+    def test_compact_constructs_desugar_to_identical_validation_report(self) -> None:
+        verbose = """LIFECYCLE compact-demo VERSION 1
+DESCRIPTION "Equivalence test"
+STATE DRAFT INITIAL
+STATE PLAN
+STATE IN_PROGRESS
+STATE BLOCKED
+STATE DONE TERMINAL
+STATE CANCELLED TERMINAL
+EVENT START
+EVENT BLOCK
+EVENT COMPLETE
+EVENT CANCEL
+EVIDENCE AUTH_PROOF
+EVIDENCE OWNER_PROOF
+EVIDENCE DONE_PROOF
+TRANSITION DRAFT -> PLAN ON START REQUIRES AUTH_PROOF
+TRANSITION PLAN -> IN_PROGRESS ON START REQUIRES AUTH_PROOF
+TRANSITION IN_PROGRESS -> BLOCKED ON BLOCK
+TRANSITION IN_PROGRESS -> DONE ON COMPLETE REQUIRES DONE_PROOF
+TRANSITION DRAFT -> CANCELLED ON CANCEL REQUIRES OWNER_PROOF
+TRANSITION PLAN -> CANCELLED ON CANCEL REQUIRES OWNER_PROOF
+TRANSITION IN_PROGRESS -> CANCELLED ON CANCEL REQUIRES OWNER_PROOF
+TRANSITION BLOCKED -> CANCELLED ON CANCEL REQUIRES OWNER_PROOF
+REJECT DRAFT ON COMPLETE WITH DEMO-ERR-001
+REJECT PLAN ON COMPLETE WITH DEMO-ERR-001
+REJECT BLOCKED ON COMPLETE WITH DEMO-ERR-001
+ERROR DEMO-ERR-001 SEVERITY ERROR MESSAGE "Cannot complete from non-active state."
+END
+"""
+        compact = """LIFECYCLE compact-demo VERSION 1
+DESCRIPTION "Equivalence test"
+STATE DRAFT INITIAL
+STATES [PLAN, IN_PROGRESS, BLOCKED]
+STATES [DONE, CANCELLED] TERMINAL
+EVENTS [START, BLOCK, COMPLETE, CANCEL]
+EVIDENCES [AUTH_PROOF, OWNER_PROOF, DONE_PROOF]
+TRANSITION DRAFT -> PLAN ON START REQUIRES AUTH_PROOF
+TRANSITION PLAN -> IN_PROGRESS ON START REQUIRES AUTH_PROOF
+TRANSITION IN_PROGRESS -> BLOCKED ON BLOCK
+TRANSITION IN_PROGRESS -> DONE ON COMPLETE REQUIRES DONE_PROOF
+TRANSITION [DRAFT, PLAN, IN_PROGRESS, BLOCKED] -> CANCELLED ON CANCEL REQUIRES OWNER_PROOF
+REJECT [DRAFT, PLAN, BLOCKED] ON COMPLETE WITH DEMO-ERR-001
+ERROR DEMO-ERR-001 SEVERITY ERROR MESSAGE "Cannot complete from non-active state."
+END
+"""
+        verbose_report = self.validate(verbose)
+        compact_report = self.validate(compact)
+        self.assertTrue(verbose_report.valid)
+        self.assertTrue(compact_report.valid)
+        self.assertEqual(verbose_report.as_dict(), compact_report.as_dict())
+
+        verbose_audit = lifecycle.audit_compaction(verbose, catalog=self.catalog)
+        compact_audit = lifecycle.audit_compaction(compact, catalog=self.catalog)
+        self.assertEqual(
+            {item["code"] for item in verbose_audit["findings"]},
+            {
+                "LFC-COMPACT-001",
+                "LFC-COMPACT-002",
+                "LFC-COMPACT-003",
+                "LFC-COMPACT-004",
+                "LFC-COMPACT-005",
+            },
+        )
+        self.assertEqual(compact_audit["finding_count"], 0)
+
+    def test_reference_and_ecosystem_profiles_have_zero_compaction_findings(
+        self,
+    ) -> None:
+        for profile_path in (PROFILE_PATH, ECOSYSTEM_PROFILE_PATH):
+            with self.subTest(profile=profile_path.name):
+                audit = lifecycle.audit_path(profile_path, self.catalog)
+                self.assertTrue(audit["valid"])
+                self.assertEqual(audit["finding_count"], 0, audit["findings"])
+
+    def test_cli_audit_text_and_json_contracts(self) -> None:
+        environment = {"PYTHONPATH": str(ROOT / "src")}
+        text_run = subprocess.run(
+            [sys.executable, "-m", "lifecycle", "audit", str(ECOSYSTEM_PROFILE_PATH)],
+            cwd=ROOT,
+            env=environment,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(text_run.returncode, 0, text_run.stderr)
+        self.assertIn("AUDIT", text_run.stdout)
+        json_run = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "lifecycle",
+                "audit",
+                str(ECOSYSTEM_PROFILE_PATH),
+                "--format",
+                "json",
+            ],
+            cwd=ROOT,
+            env=environment,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(json_run.returncode, 0, json_run.stderr)
+        payload = json.loads(json_run.stdout)
+        self.assertEqual(payload["schema"], lifecycle.AUDIT_SCHEMA)
+        self.assertEqual(payload["finding_count"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

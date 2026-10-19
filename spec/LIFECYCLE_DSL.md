@@ -16,10 +16,15 @@ and command execution do not exist.
 LIFECYCLE <name> VERSION <positive-integer>
 DESCRIPTION "<human-readable text>"
 STATE <STATE_ID> [INITIAL] [TERMINAL]
+STATES [<STATE_ID>, ...] [INITIAL] [TERMINAL]
 EVENT <EVENT_ID>
+EVENTS [<EVENT_ID>, ...]
 EVIDENCE <EVIDENCE_ID>
+EVIDENCES [<EVIDENCE_ID>, ...]
 TRANSITION <STATE_ID> -> <STATE_ID> ON <EVENT_ID> [REQUIRES <EVIDENCE_ID>]
+TRANSITION [<STATE_ID>, ...] -> <STATE_ID> ON <EVENT_ID> [REQUIRES <EVIDENCE_ID>]
 REJECT <STATE_ID> ON <EVENT_ID> WITH <ERROR_CODE>
+REJECT [<STATE_ID>, ...] ON <EVENT_ID> WITH <ERROR_CODE>
 ERROR <ERROR_CODE> SEVERITY <INFO|WARNING|ERROR|CRITICAL> MESSAGE "<message>"
 END
 ```
@@ -28,6 +33,12 @@ END
 identifiers match `[A-Z][A-Z0-9_]*`. Profile error codes match
 `[A-Z][A-Z0-9]*(?:-[A-Z0-9]+){2,}` and must not use the reserved `LFC-`
 prefix.
+
+Bracketed identifier lists (`STATES [...]`, `EVENTS [...]`, `EVIDENCES [...]`,
+`TRANSITION [...] -> ...`, and `REJECT [...] ON ...`) are deterministic
+compile-time desugaring constructs that expand left-to-right into their
+equivalent single-identifier statements while preserving identical validation
+reports (`lifecycle.validation/v1`).
 
 ## Normative semantics
 
@@ -167,6 +178,7 @@ vary with input; code and message semantics remain stable within v1.
 
 ```text
 python -m lifecycle validate PATH [--format text|json] [--catalog PATH]
+python -m lifecycle audit PATH [--format text|json] [--catalog PATH]
 ```
 
 - Exit `0`: every lifecycle is valid.
@@ -175,8 +187,11 @@ python -m lifecycle validate PATH [--format text|json] [--catalog PATH]
 - Exit `2`: usage, catalog, or unexpected internal failure prevented a trusted
   validation result.
 
-JSON output uses schema `lifecycle.validation/v1`, deterministic key ordering,
-and a stable diagnostic order of source line, code, document, and detail.
+JSON output for `validate` uses schema `lifecycle.validation/v1`, deterministic
+key ordering, and a stable diagnostic order of source line, code, document, and
+detail. JSON output for `audit` uses schema `lifecycle.compaction-audit/v1` and
+reports `LFC-COMPACT-001..005` compaction opportunities alongside per-lifecycle
+metrics.
 
 ## Compatibility
 

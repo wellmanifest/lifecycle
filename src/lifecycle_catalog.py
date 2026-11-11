@@ -13,6 +13,15 @@ if TYPE_CHECKING:
 MAX_CATALOG_DEPTH = 16
 
 
+def _check_utf8_str(value: str) -> None:
+    from lifecycle import CatalogError
+
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as error:
+        raise CatalogError("LFC-CATALOG-001: lone UTF-16 surrogate in JSON string") from error
+
+
 def _check_json_depth(value: Any, max_depth: int = MAX_CATALOG_DEPTH) -> None:
     from lifecycle import CatalogError
 
@@ -21,12 +30,22 @@ def _check_json_depth(value: Any, max_depth: int = MAX_CATALOG_DEPTH) -> None:
         current, depth = stack.pop()
         if isinstance(current, float) and not math.isfinite(current):
             raise CatalogError("LFC-CATALOG-001: non-finite JSON float")
-        if isinstance(current, dict):
+        if type(current) is int:
+            try:
+                ok = math.isfinite(float(current))
+            except OverflowError:
+                ok = False
+            if not ok:
+                raise CatalogError("LFC-CATALOG-001: JSON integer magnitude exceeds finite range")
+        if isinstance(current, str):
+            _check_utf8_str(current)
+        elif isinstance(current, dict):
             if depth >= max_depth:
                 raise CatalogError(f"LFC-CATALOG-001: JSON nesting exceeds {max_depth}")
             for key, child in current.items():
                 if not isinstance(key, str):
                     raise CatalogError("LFC-CATALOG-001: JSON object key must be a string")
+                _check_utf8_str(key)
                 stack.append((child, depth + 1))
         elif isinstance(current, list):
             if depth >= max_depth:
@@ -102,6 +121,7 @@ def load_catalog_impl(path: Path) -> dict[str, CatalogEntry]:
             or severity not in SEVERITIES
             or not isinstance(msg, str)
             or not msg.strip()
+            or any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in msg)
             or code in result
         ):
             raise CatalogError(f"LFC-CATALOG-001: diagnostic {idx} is invalid")

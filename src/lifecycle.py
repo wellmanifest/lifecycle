@@ -20,28 +20,20 @@ CATALOG_SCHEMA = "lifecycle.diagnostics/v1"
 REPORT_SCHEMA = "lifecycle.validation/v1"
 AUDIT_SCHEMA = "lifecycle.compaction-audit/v1"
 SEVERITIES = {"INFO", "WARNING", "ERROR", "CRITICAL"}
-IDENTIFIER = re.compile(r"^[A-Z][A-Z0-9_]*\Z")
-LIFECYCLE_NAME = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
-PROFILE_ERROR_CODE = re.compile(r"^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+){2,}\Z")
-CORE_CODE = re.compile(r"^LFC-[A-Z]+-[0-9]{3}\Z")
-POSITIVE_INTEGER = re.compile(r"^[1-9][0-9]*\Z")
+IDENTIFIER = re.compile(r"\A[A-Z][A-Z0-9_]*\Z")
+LIFECYCLE_NAME = re.compile(r"\A[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
+PROFILE_ERROR_CODE = re.compile(r"\A[A-Z][A-Z0-9]*(?:-[A-Z0-9]+){2,}\Z")
+CORE_CODE = re.compile(r"\ALFC-[A-Z]+-[0-9]{3}\Z")
+POSITIVE_INTEGER = re.compile(r"\A[1-9][0-9]*\Z")
 EMBEDDED_CATALOG_ROWS = (
-    ("LFC-IO-001", "ERROR", "Lifecycle input could not be read."),
-    ("LFC-SYNTAX-001", "ERROR", "Lifecycle input is not valid UTF-8."),
-    ("LFC-SYNTAX-002", "ERROR", "Lifecycle statement syntax is invalid."),
-    ("LFC-DOC-001", "ERROR", "Lifecycle document boundary is invalid."),
-    ("LFC-DOC-002", "ERROR", "Lifecycle name is duplicated in the bundle."),
-    ("LFC-MODEL-001", "ERROR", "Lifecycle identifier or scalar is invalid."),
-    ("LFC-MODEL-002", "ERROR", "Lifecycle declaration is duplicated."),
-    ("LFC-MODEL-003", "ERROR", "Lifecycle must declare exactly one initial state."),
-    ("LFC-MODEL-004", "ERROR", "Lifecycle statement references an undeclared symbol."),
-    ("LFC-MODEL-005", "ERROR", "State and event pair has more than one decision."),
-    ("LFC-MODEL-006", "ERROR", "Lifecycle state is unreachable from the initial state."),
-    ("LFC-MODEL-007", "ERROR", "Terminal state has an outgoing transition."),
-    ("LFC-ERROR-001", "ERROR", "Profile error declaration is invalid."),
-    ("LFC-ERROR-002", "ERROR", "Profile error binding is unresolved or unused."),
-    ("LFC-ERROR-003", "ERROR", "Profile error code is duplicated in the bundle."),
-    ("LFC-CATALOG-001", "CRITICAL", "Core diagnostic catalog is invalid."),
+    ("LFC-IO-001", "ERROR", "Lifecycle input could not be read."), ("LFC-SYNTAX-001", "ERROR", "Lifecycle input is not valid UTF-8."),
+    ("LFC-SYNTAX-002", "ERROR", "Lifecycle statement syntax is invalid."), ("LFC-DOC-001", "ERROR", "Lifecycle document boundary is invalid."),
+    ("LFC-DOC-002", "ERROR", "Lifecycle name is duplicated in the bundle."), ("LFC-MODEL-001", "ERROR", "Lifecycle identifier or scalar is invalid."),
+    ("LFC-MODEL-002", "ERROR", "Lifecycle declaration is duplicated."), ("LFC-MODEL-003", "ERROR", "Lifecycle must declare exactly one initial state."),
+    ("LFC-MODEL-004", "ERROR", "Lifecycle statement references an undeclared symbol."), ("LFC-MODEL-005", "ERROR", "State and event pair has more than one decision."),
+    ("LFC-MODEL-006", "ERROR", "Lifecycle state is unreachable from the initial state."), ("LFC-MODEL-007", "ERROR", "Terminal state has an outgoing transition."),
+    ("LFC-ERROR-001", "ERROR", "Profile error declaration is invalid."), ("LFC-ERROR-002", "ERROR", "Profile error binding is unresolved or unused."),
+    ("LFC-ERROR-003", "ERROR", "Profile error code is duplicated in the bundle."), ("LFC-CATALOG-001", "CRITICAL", "Core diagnostic catalog is invalid."),
 )
 REQUIRED_CORE_CODES = {code for code, _, _ in EMBEDDED_CATALOG_ROWS}
 
@@ -54,19 +46,6 @@ class CatalogEntry(NamedTuple):
     code: str
     severity: str
     message: str
-
-
-class Diagnostic(NamedTuple):
-    code: str
-    severity: str
-    message: str
-    path: str
-    line: int
-    document: str | None
-    detail: str
-
-    def as_dict(self) -> dict[str, Any]:
-        return self._asdict()
 
 
 class State(NamedTuple):
@@ -98,6 +77,19 @@ class ProfileError(NamedTuple):
     line: int
 
 
+class Diagnostic(NamedTuple):
+    code: str
+    severity: str
+    message: str
+    path: str
+    line: int
+    document: str | None
+    detail: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return self._asdict()
+
+
 def embedded_catalog() -> dict[str, CatalogEntry]:
     result = {c: CatalogEntry(c, s, m) for c, s, m in EMBEDDED_CATALOG_ROWS}
     if set(result) != REQUIRED_CORE_CODES:
@@ -118,22 +110,14 @@ class Lifecycle:
     transitions: list[Transition] = field(default_factory=list)
     rejects: list[Reject] = field(default_factory=list)
     errors: dict[str, ProfileError] = field(default_factory=dict)
-    uncompacted: dict[str, list[Any]] = field(
-        default_factory=lambda: {"states": [], "events": [], "evidence": [], "transitions": [], "rejects": []}
-    )
-    batched: dict[str, int] = field(
-        default_factory=lambda: {"states": 0, "events": 0, "evidence": 0, "transitions": 0, "rejects": 0}
-    )
+    uncompacted: dict[str, list[Any]] = field(default_factory=lambda: {k: [] for k in ("states", "events", "evidence", "transitions", "rejects")})
+    batched: dict[str, int] = field(default_factory=lambda: {k: 0 for k in ("states", "events", "evidence", "transitions", "rejects")})
 
     def summary(self) -> dict[str, Any]:
-        ini = sorted(s.name for s in self.states.values() if s.initial)
-        trm = sorted(s.name for s in self.states.values() if s.terminal)
-        return {
-            "name": self.name, "version": self.version, "initial_state": ini[0] if len(ini) == 1 else None,
-            "terminal_states": trm, "state_count": len(self.states), "event_count": len(self.events),
-            "evidence_count": len(self.evidence), "transition_count": len(self.transitions),
-            "reject_count": len(self.rejects), "error_count": len(self.errors),
-        }
+        ini, trm = sorted(s.name for s in self.states.values() if s.initial), sorted(s.name for s in self.states.values() if s.terminal)
+        return {"name": self.name, "version": self.version, "initial_state": ini[0] if len(ini) == 1 else None, "terminal_states": trm,
+                "state_count": len(self.states), "event_count": len(self.events), "evidence_count": len(self.evidence),
+                "transition_count": len(self.transitions), "reject_count": len(self.rejects), "error_count": len(self.errors)}
 
 
 @dataclass
@@ -148,14 +132,16 @@ class ValidationReport:
 
     def as_dict(self) -> dict[str, Any]:
         ordered = sorted(self.diagnostics, key=lambda d: (d.line, d.code, d.document or "", d.detail))
-        return {
-            "schema": REPORT_SCHEMA, "status": "valid" if self.valid else "invalid", "source": self.source,
-            "lifecycle_count": len(self.lifecycles), "lifecycles": [x.summary() for x in self.lifecycles],
-            "diagnostics": [x.as_dict() for x in ordered],
-        }
+        return {"schema": REPORT_SCHEMA, "status": "valid" if self.valid else "invalid", "source": self.source,
+                "lifecycle_count": len(self.lifecycles), "lifecycles": [x.summary() for x in self.lifecycles], "diagnostics": [x.as_dict() for x in ordered]}
 
 
 def read_regular_bytes(path: Path, max_bytes: int = MAX_INPUT_BYTES) -> bytes:
+    if type(max_bytes) is not int or max_bytes < 1:
+        raise ValueError("max_bytes must be a positive integer")
+    ancestors = [Path(*path.parts[:i]) for i in range(1, len(path.parts))] if not path.is_absolute() else [path.parent]
+    if any(anc.is_symlink() for anc in ancestors):
+        raise OSError(f"refusing symlink ancestor for {path}")
     st = os.lstat(path)
     if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
         raise OSError("input must be a non-symlink regular file")
@@ -165,7 +151,7 @@ def read_regular_bytes(path: Path, max_bytes: int = MAX_INPUT_BYTES) -> bytes:
         if not stat.S_ISREG(info.st_mode) or (st.st_dev, st.st_ino) != (info.st_dev, info.st_ino) or info.st_size > max_bytes:
             raise OSError("input must be an unchanged regular file within maximum size")
         chunks, total = [], 0
-        while chunk := os.read(fd, 65536):
+        while chunk := os.read(fd, min(65536, max_bytes + 1 - total)):
             total += len(chunk)
             if total > max_bytes:
                 raise OSError("input file exceeds maximum size")
@@ -306,14 +292,19 @@ def _parse_statement(tokens: list[str], line: int, model: Lifecycle, emitter: Em
 
 
 def parse_bundle(text: str, emitter: Emitter) -> list[Lifecycle]:
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError as err:
+        emitter.emit("LFC-SYNTAX-001", 0, str(err))
+        return []
     norm = text.replace("\r\n", "\n").replace("\r", "\n")
     raw_lines = [] if not norm else norm.removesuffix("\n").split("\n")
     models: list[Lifecycle] = []
     current: Lifecycle | None = None
     for line_no, raw_line in enumerate(raw_lines, start=1):
         doc_name = current.name if current else None
-        if "\x00" in raw_line:
-            emitter.emit("LFC-SYNTAX-002", line_no, "NUL byte is forbidden", doc_name)
+        if any((ord(c) < 0x20 and c != "\t") or ord(c) == 0x7F for c in raw_line):
+            emitter.emit("LFC-SYNTAX-002", line_no, "control byte is forbidden", doc_name)
             continue
         try:
             lexer = shlex.shlex(raw_line, posix=True)

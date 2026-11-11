@@ -1,0 +1,89 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-006",
+  "summary": "Register lifecycle_audit and lifecycle_catalog in pyproject.toml py-modules",
+  "workstream": "integration",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-005/README.md",
+    "project/ticket-006/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "pyproject.toml"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "6037fec9b93a653dd6a32a057fcb1b956e76eb94",
+    "targetBranch": "main",
+    "outcome": "Register lifecycle_audit and lifecycle_catalog alongside lifecycle in pyproject.toml [tool.setuptools].py-modules so wheel and editable installs bundle all three Lifecycle DSL modules.",
+    "nonGoals": [
+      "No runtime dependency additions",
+      "No Lifecycle DSL grammar or diagnostic contract changes"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 15,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 1
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "List lifecycle, lifecycle_audit, and lifecycle_catalog explicitly in [tool.setuptools].py-modules under src/.",
+      "components": [
+        {
+          "name": "lifecycle-packaging",
+          "paths": [
+            "pyproject.toml"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the ticket branch commit or close the pull request before merge."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "PYTHONPATH=src pytest -q"
+        ],
+        "evidence": "project/ticket-006/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "./project/governance-check.sh --base origin/main"
+        ],
+        "evidence": "project/ticket-006/README.md"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "wellman check"
+        ],
+        "evidence": "project/ticket-006/README.md"
+      }
+    ]
+  }
+}

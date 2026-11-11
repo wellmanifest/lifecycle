@@ -15,7 +15,7 @@ dependencies = []
 lifecycle = "lifecycle:main"
 
 [tool.setuptools]
-py-modules = ["lifecycle"]
+py-modules = ["lifecycle", "lifecycle_audit", "lifecycle_catalog"]
 package-dir = {"" = "src"}
 
 [tool.wellmanifest]

@@ -255,6 +255,31 @@ END
         self.assertIsNone(lifecycle.LIFECYCLE_NAME.fullmatch("\nsample"))
         self.assertIsNone(lifecycle.CORE_CODE.fullmatch("\nLFC-IO-001"))
 
+    def test_deep_absolute_symlink_ancestors_and_in_memory_byte_bounds(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            real_nested = base / "real_dir" / "nested"
+            real_nested.mkdir(parents=True)
+            doc_file = real_nested / "bundle.lifecycle"
+            doc_file.write_bytes(PROFILE_PATH.read_bytes())
+            sym_dir = base / "sym_dir"
+            sym_dir.symlink_to(base / "real_dir")
+            deep_sym_target = sym_dir / "nested" / "bundle.lifecycle"
+            with self.assertRaises(OSError):
+                lifecycle.read_regular_bytes(deep_sym_target)
+            rep = lifecycle.validate_path(deep_sym_target, self.catalog)
+            self.assertFalse(rep.valid)
+            self.assertEqual([d.code for d in rep.diagnostics], ["LFC-IO-001"])
+
+        oversized = "a" * (lifecycle.MAX_INPUT_BYTES + 1)
+        over_rep = lifecycle.validate_text(oversized, source="mem", catalog=self.catalog)
+        self.assertFalse(over_rep.valid)
+        self.assertEqual([d.code for d in over_rep.diagnostics], ["LFC-IO-001"])
+
+        non_str_rep = lifecycle.validate_text(123, source="mem", catalog=self.catalog)  # type: ignore[arg-type]
+        self.assertFalse(non_str_rep.valid)
+        self.assertEqual([d.code for d in non_str_rep.diagnostics], ["LFC-IO-001"])
+
 
 if __name__ == "__main__":
     unittest.main()

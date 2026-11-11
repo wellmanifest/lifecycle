@@ -139,7 +139,7 @@ class ValidationReport:
 def read_regular_bytes(path: Path, max_bytes: int = MAX_INPUT_BYTES) -> bytes:
     if type(max_bytes) is not int or max_bytes < 1:
         raise ValueError("max_bytes must be a positive integer")
-    ancestors = [Path(*path.parts[:i]) for i in range(1, len(path.parts))] if not path.is_absolute() else [path.parent]
+    ancestors = [Path(*path.parts[:i]) for i in range(1, len(path.parts))] if not path.is_absolute() else [a for a in path.parents if len(a.parts) > 2]
     if any(anc.is_symlink() for anc in ancestors):
         raise OSError(f"refusing symlink ancestor for {path}")
     st = os.lstat(path)
@@ -292,10 +292,16 @@ def _parse_statement(tokens: list[str], line: int, model: Lifecycle, emitter: Em
 
 
 def parse_bundle(text: str, emitter: Emitter) -> list[Lifecycle]:
+    if not isinstance(text, str):
+        emitter.emit("LFC-IO-001", 0, "lifecycle input must be a string")
+        return []
     try:
-        text.encode("utf-8")
+        encoded = text.encode("utf-8")
     except UnicodeEncodeError as err:
         emitter.emit("LFC-SYNTAX-001", 0, str(err))
+        return []
+    if len(encoded) > MAX_INPUT_BYTES:
+        emitter.emit("LFC-IO-001", 0, "lifecycle input exceeds maximum byte size")
         return []
     norm = text.replace("\r\n", "\n").replace("\r", "\n")
     raw_lines = [] if not norm else norm.removesuffix("\n").split("\n")
@@ -470,10 +476,10 @@ def main(argv: list[str] | None = None) -> int:
         catalog = load_catalog(args.catalog) if args.catalog else embedded_catalog()
         if args.command == "audit":
             audit = audit_path(args.path, catalog)
-            print(json.dumps(audit, indent=2, sort_keys=True) if args.format == "json" else render_audit_text(audit))
+            print(json.dumps(audit, indent=2, sort_keys=True, allow_nan=False) if args.format == "json" else render_audit_text(audit))
             return 0 if audit["valid"] else 1
         report = validate_path(args.path, catalog)
-        print(json.dumps(report.as_dict(), indent=2, sort_keys=True) if args.format == "json" else render_text(report))
+        print(json.dumps(report.as_dict(), indent=2, sort_keys=True, allow_nan=False) if args.format == "json" else render_text(report))
         return 0 if report.valid else 1
     except CatalogError as error:
         print(str(error), file=sys.stderr)

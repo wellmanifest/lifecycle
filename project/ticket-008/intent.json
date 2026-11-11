@@ -1,0 +1,99 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-008",
+  "summary": "Harden lifecycle regex anchors, int/float bounds, and regular-file inode checks",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-007/README.md",
+    "project/ticket-008/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "src/lifecycle.py",
+    "src/lifecycle_catalog.py",
+    "tests/test_lifecycle_hardening.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "9f31e31f253233f213beeab66cfa340e84156ad4",
+    "targetBranch": "main",
+    "outcome": "Anchor regexes with \\Z, bound VERSION digit conversion against Python >4300-digit ValueError, verify lstat/fstat regular-file inode stability in read_regular_bytes, reject overflow JSON floats (1e999) in lifecycle_catalog.py, add regression tests, keep all modules < 500 lines, and close merged ticket-007.",
+    "nonGoals": [
+      "No runtime dependency additions",
+      "No Lifecycle DSL v1 grammar or schema changes"
+    ],
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "budgets": {
+      "maxImplementationFiles": 5,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Keep src/lifecycle.py self-contained under 500 lines while tightening VERSION integer conversion, regex anchors, regular-file inode checks, and finite JSON float parsing in lifecycle_catalog.py.",
+      "components": [
+        {
+          "name": "lifecycle-validator",
+          "paths": [
+            "src/lifecycle.py",
+            "src/lifecycle_catalog.py"
+          ]
+        },
+        {
+          "name": "lifecycle-tests",
+          "paths": [
+            "tests/test_lifecycle_hardening.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the ticket branch commit or close the pull request before merge."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "PYTHONPATH=src python3 -m unittest discover -s tests -v"
+        ],
+        "evidence": "project/ticket-008/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src pytest -q"
+        ],
+        "evidence": "project/ticket-008/README.md"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh --base origin/main",
+          "wellman check"
+        ],
+        "evidence": "project/ticket-008/README.md"
+      }
+    ]
+  }
+}

@@ -71,6 +71,38 @@ class LifecycleHardeningTests(unittest.TestCase):
             with self.assertRaises(lifecycle.CatalogError):
                 lifecycle.load_catalog(deep_cat)
 
+            overflow_cat = tmp_dir / "overflow-catalog.json"
+            overflow_cat.write_text(
+                '{"schema": "lifecycle.diagnostics/v1", "version": 1e999, "diagnostics": []}',
+                encoding="utf-8",
+            )
+            with self.assertRaises(lifecycle.CatalogError):
+                lifecycle.load_catalog(overflow_cat)
+
+    def test_huge_version_digits_and_fifo_fail_closed_without_crash_or_hang(self) -> None:
+        huge_digits = "1" + ("0" * 5000)
+        text = (
+            f"LIFECYCLE sample VERSION {huge_digits}\n"
+            "STATE START INITIAL\n"
+            "STATE DONE TERMINAL\n"
+            "EVENT GO\n"
+            "TRANSITION START -> DONE ON GO\n"
+            "END\n"
+        )
+        report = lifecycle.validate_text(text, source="huge.lifecycle", catalog=self.catalog)
+        self.assertFalse(report.valid)
+        self.assertIn("LFC-MODEL-001", {d.code for d in report.diagnostics})
+
+        import os
+
+        if hasattr(os, "mkfifo"):
+            with tempfile.TemporaryDirectory() as tmp:
+                fifo = Path(tmp) / "bundle.fifo"
+                os.mkfifo(fifo)
+                fifo_report = lifecycle.validate_path(fifo, self.catalog)
+                self.assertFalse(fifo_report.valid)
+                self.assertEqual([d.code for d in fifo_report.diagnostics], ["LFC-IO-001"])
+
     def test_nul_bytes_are_rejected_as_syntax_diagnostics(self) -> None:
         text = (
             "LIFECYCLE sample VERSION 1\n"

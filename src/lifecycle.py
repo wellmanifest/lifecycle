@@ -20,11 +20,11 @@ CATALOG_SCHEMA = "lifecycle.diagnostics/v1"
 REPORT_SCHEMA = "lifecycle.validation/v1"
 AUDIT_SCHEMA = "lifecycle.compaction-audit/v1"
 SEVERITIES = {"INFO", "WARNING", "ERROR", "CRITICAL"}
-IDENTIFIER = re.compile(r"^[A-Z][A-Z0-9_]*$")
-LIFECYCLE_NAME = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
-PROFILE_ERROR_CODE = re.compile(r"^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+){2,}$")
-CORE_CODE = re.compile(r"^LFC-[A-Z]+-[0-9]{3}$")
-POSITIVE_INTEGER = re.compile(r"^[1-9][0-9]*$")
+IDENTIFIER = re.compile(r"^[A-Z][A-Z0-9_]*\Z")
+LIFECYCLE_NAME = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
+PROFILE_ERROR_CODE = re.compile(r"^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+){2,}\Z")
+CORE_CODE = re.compile(r"^LFC-[A-Z]+-[0-9]{3}\Z")
+POSITIVE_INTEGER = re.compile(r"^[1-9][0-9]*\Z")
 EMBEDDED_CATALOG_ROWS = (
     ("LFC-IO-001", "ERROR", "Lifecycle input could not be read."),
     ("LFC-SYNTAX-001", "ERROR", "Lifecycle input is not valid UTF-8."),
@@ -156,13 +156,14 @@ class ValidationReport:
 
 
 def read_regular_bytes(path: Path, max_bytes: int = MAX_INPUT_BYTES) -> bytes:
-    if path.is_symlink():
-        raise OSError("symlinked input path is forbidden")
+    st = os.lstat(path)
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
+        raise OSError("input must be a non-symlink regular file")
     fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
     try:
         info = os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode) or info.st_size > max_bytes:
-            raise OSError("input must be a regular file within maximum size")
+        if not stat.S_ISREG(info.st_mode) or (st.st_dev, st.st_ino) != (info.st_dev, info.st_ino) or info.st_size > max_bytes:
+            raise OSError("input must be an unchanged regular file within maximum size")
         chunks, total = [], 0
         while chunk := os.read(fd, 65536):
             total += len(chunk)
@@ -333,7 +334,7 @@ def parse_bundle(text: str, emitter: Emitter) -> list[Lifecycle]:
                 current = None
                 continue
             name, raw_ver = tokens[1], tokens[3]
-            ver = int(raw_ver) if POSITIVE_INTEGER.fullmatch(raw_ver) else 0
+            ver = int(raw_ver) if len(raw_ver) <= 9 and POSITIVE_INTEGER.fullmatch(raw_ver) else 0
             current = Lifecycle(name=name, version=ver, line=line_no)
             if LIFECYCLE_NAME.fullmatch(name) is None or ver != 1:
                 emitter.emit("LFC-MODEL-001", line_no, f"invalid header {name!r} v{raw_ver!r}", name)

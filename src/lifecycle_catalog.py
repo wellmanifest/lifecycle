@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -18,6 +19,8 @@ def _check_json_depth(value: Any, max_depth: int = MAX_CATALOG_DEPTH) -> None:
     stack: list[tuple[Any, int]] = [(value, 0)]
     while stack:
         current, depth = stack.pop()
+        if isinstance(current, float) and not math.isfinite(current):
+            raise CatalogError("LFC-CATALOG-001: non-finite JSON float")
         if isinstance(current, dict):
             if depth >= max_depth:
                 raise CatalogError(f"LFC-CATALOG-001: JSON nesting exceeds {max_depth}")
@@ -56,14 +59,23 @@ def load_catalog_impl(path: Path) -> dict[str, CatalogEntry]:
     def reject_constant(token: str) -> Any:
         raise CatalogError(f"LFC-CATALOG-001: non-finite JSON constant {token!r}")
 
+    def parse_finite_float(token: str) -> float:
+        parsed = float(token)
+        if not math.isfinite(parsed):
+            raise CatalogError(f"LFC-CATALOG-001: non-finite JSON float {token!r}")
+        return parsed
+
     try:
         raw = read_regular_bytes(path).decode("utf-8")
         document = json.loads(
-            raw, object_pairs_hook=strict_object, parse_constant=reject_constant
+            raw,
+            object_pairs_hook=strict_object,
+            parse_constant=reject_constant,
+            parse_float=parse_finite_float,
         )
     except CatalogError:
         raise
-    except (OSError, UnicodeError, json.JSONDecodeError, RecursionError) as error:
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError, RecursionError) as error:
         raise CatalogError(f"LFC-CATALOG-001: cannot load {path}: {error}") from error
     _check_json_depth(document)
     if not isinstance(document, dict) or set(document) != {

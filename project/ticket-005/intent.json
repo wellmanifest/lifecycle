@@ -1,0 +1,98 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-005",
+  "summary": "Harden Lifecycle DSL validator, catalog loader, and audit CLI under 500 lines",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-003/README.md",
+    "project/ticket-004/README.md",
+    "project/ticket-005/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "src/lifecycle.py",
+    "src/lifecycle_audit.py",
+    "src/lifecycle_catalog.py",
+    "tests/test_lifecycle.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "1ea2a90bd5b90a768ad2b36a9c1c330523bc80b4",
+    "targetBranch": "main",
+    "outcome": "Modularize wellmanifest/lifecycle under 500 lines per module while preserving standalone byte-pinned validator adoption, and harden load_catalog, audit_path, and parse_bundle against fail-open and crash inputs.",
+    "nonGoals": [
+      "No breaking changes to lifecycle.validation/v1, lifecycle.diagnostics/v1, or lifecycle.compaction-audit/v1 contracts",
+      "No runtime dependency additions"
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 45,
+    "budgets": {
+      "maxImplementationFiles": 9,
+      "maxAffectedComponents": 2,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Keep embedded catalog and core Lifecycle DSL v1 validation inside standalone src/lifecycle.py while delegating external catalog JSON parsing and compaction auditing to sibling modules registered in pyproject.toml.",
+      "components": [
+        {
+          "name": "lifecycle-validator-and-auditor",
+          "paths": [
+            "src/lifecycle.py",
+            "src/lifecycle_audit.py",
+            "src/lifecycle_catalog.py",
+            "tests/test_lifecycle.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the ticket branch commit or close the pull request before merge."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "ruff check src tests"
+        ],
+        "evidence": "project/ticket-005/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "PYTHONPATH=src pytest -q",
+          "PYTHONPATH=src python3 -m unittest discover -s tests -v"
+        ],
+        "evidence": "project/ticket-005/README.md"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh --base origin/main",
+          "wellman check"
+        ],
+        "evidence": "project/ticket-005/README.md"
+      }
+    ]
+  }
+}

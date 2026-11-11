@@ -1,18 +1,18 @@
 # Ticket 003: Adopt wellmanifest/new-project 0.20.32
 
 - **ID**: ticket-003
-- **Owner**: unresolved:human
-- **Status**: IN_PROGRESS
-- **Workflow state**: EDIT
+- **Owner**: tom
+- **Status**: DONE
+- **Workflow state**: PUBLICATION
 - **Created**: 2026-09-16
 
 ## Goal and scope
 
-To be completed from human-owned input.
+Adopt wellmanifest/new-project 0.20.32 managed package refresh.
 
 ## Acceptance criteria
 
-- [ ] AC-01: Scope is approved by a human owner.
+- [x] AC-01: Scope is approved by a human owner.
 
 ## Participants
 

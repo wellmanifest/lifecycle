@@ -379,6 +379,65 @@ END
         self.assertEqual(payload["schema"], lifecycle.AUDIT_SCHEMA)
         self.assertEqual(payload["finding_count"], 0)
 
+    def test_catalog_rejects_duplicate_json_keys_and_bool_version(self) -> None:
+        raw = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        raw["version"] = True
+        with tempfile.TemporaryDirectory() as tmp:
+            bool_ver = Path(tmp) / "bool-version.json"
+            bool_ver.write_text(json.dumps(raw), encoding="utf-8")
+            with self.assertRaisesRegex(lifecycle.CatalogError, "LFC-CATALOG-001"):
+                lifecycle.load_catalog(bool_ver)
+
+            dup_key = Path(tmp) / "dup-key.json"
+            dup_key.write_text(
+                '{"schema":"lifecycle.diagnostics/v1","version":1,"version":1,"diagnostics":[]}',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(lifecycle.CatalogError, "duplicate JSON key"):
+                lifecycle.load_catalog(dup_key)
+
+    def test_audit_handles_missing_and_non_utf8_files_without_internal_crash(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = Path(tmp) / "missing.lifecycle"
+            out = io.StringIO()
+            with redirect_stdout(out):
+                rc_missing = lifecycle.main(["audit", str(missing), "--format", "json"])
+            self.assertEqual(rc_missing, 1)
+            missing_payload = json.loads(out.getvalue())
+            self.assertFalse(missing_payload["valid"])
+            self.assertEqual(missing_payload["diagnostics"][0]["code"], "LFC-IO-001")
+
+            bad_utf8 = Path(tmp) / "bad.lifecycle"
+            bad_utf8.write_bytes(b"\xff\xfeLIFECYCLE bad VERSION 1\n")
+            out2 = io.StringIO()
+            with redirect_stdout(out2):
+                rc_utf8 = lifecycle.main(["audit", str(bad_utf8)])
+            self.assertEqual(rc_utf8, 1)
+            self.assertIn("LFC-SYNTAX-001", out2.getvalue())
+
+    def test_unicode_line_separators_inside_quotes_do_not_split_statements(
+        self,
+    ) -> None:
+        text = document(
+            'DESCRIPTION "First segment\u2028Second segment"\n'
+            "TRANSITION START -> DONE ON COMPLETE"
+        )
+        report = self.validate(text)
+        self.assertTrue(report.valid, lifecycle.render_text(report))
+        self.assertEqual(
+            report.lifecycles[0].description, "First segment\u2028Second segment"
+        )
+
+    def test_non_canonical_version_tokens_are_rejected(self) -> None:
+        for bad_ver in ("+1", "01", "1_0"):
+            with self.subTest(version=bad_ver):
+                text = document("TRANSITION START -> DONE ON COMPLETE").replace(
+                    "VERSION 1", f"VERSION {bad_ver}"
+                )
+                self.assertIn("LFC-MODEL-001", self.codes(text))
+
 
 if __name__ == "__main__":
     unittest.main()

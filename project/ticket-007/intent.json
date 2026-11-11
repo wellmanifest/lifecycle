@@ -1,0 +1,109 @@
+{
+  "schema": "new-project.intent/v3",
+  "ticket": "ticket-007",
+  "summary": "Harden lifecycle file/JSON bounds, deduplicate SSOT constants, and slim lifecycle.py",
+  "workstream": "application",
+  "classification": {
+    "kind": "BUG",
+    "priority": "P1",
+    "origin": "health"
+  },
+  "allowedPaths": [
+    "project/ticket-006/README.md",
+    "project/ticket-007/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "src/lifecycle.py",
+    "src/lifecycle_audit.py",
+    "src/lifecycle_catalog.py",
+    "tests/test_lifecycle_hardening.py"
+  ],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "stacks": [
+    "python"
+  ],
+  "dependsOn": [],
+  "conflictsWith": [],
+  "integrationTicket": null,
+  "delivery": {
+    "acceptedBaseSha": "12bdc4c899bd6119cc30fca51d00a62b8582fa79",
+    "targetBranch": "main",
+    "outcome": "Enforce O_NOFOLLOW regular-file and 4 MiB bounds across lifecycle bundle and catalog loading, reject non-finite/deeply nested catalog JSON and NUL bytes, exclude duplicate/invalid declarations from compaction counts, deduplicate SSOT constants across src/lifecycle*.py, and keep all Python modules under 500 lines while preserving standalone validator copy support.",
+    "nonGoals": [
+      "No runtime dependency additions",
+      "No Lifecycle DSL v1 grammar or schema changes"
+    ],
+    "complexity": "M",
+    "estimatedMinutes": 35,
+    "budgets": {
+      "maxImplementationFiles": 8,
+      "maxAffectedComponents": 3,
+      "maxPublicInterfaceChanges": 1,
+      "maxRuntimeDependencies": 0
+    },
+    "architecture": {
+      "status": "accepted",
+      "decision": "Keep src/lifecycle.py self-contained for standalone validation while sharing SSOT constants and read_regular_bytes with lifecycle_catalog.py and lifecycle_audit.py.",
+      "components": [
+        {
+          "name": "lifecycle-validator",
+          "paths": [
+            "src/lifecycle.py",
+            "src/lifecycle_catalog.py",
+            "src/lifecycle_audit.py"
+          ]
+        },
+        {
+          "name": "lifecycle-tests",
+          "paths": [
+            "tests/test_lifecycle_hardening.py"
+          ]
+        }
+      ],
+      "responsibilityChanges": false,
+      "interfaceChanges": [
+        "src/lifecycle.py:read_regular_bytes"
+      ],
+      "dataChanges": [],
+      "ui": {
+        "impact": "none",
+        "states": [],
+        "evidence": []
+      },
+      "rollback": "Revert the ticket branch commit or close the pull request before merge."
+    },
+    "runtimeDependencies": [],
+    "validation": [
+      {
+        "criterion": "AC-01",
+        "commands": [
+          "PYTHONPATH=src python3 -m unittest discover -s tests -v"
+        ],
+        "evidence": "project/ticket-007/README.md"
+      },
+      {
+        "criterion": "AC-02",
+        "commands": [
+          "PYTHONPATH=src pytest -q"
+        ],
+        "evidence": "project/ticket-007/README.md"
+      },
+      {
+        "criterion": "AC-03",
+        "commands": [
+          "./project/governance-check.sh --base origin/main"
+        ],
+        "evidence": "project/ticket-007/README.md"
+      },
+      {
+        "criterion": "AC-04",
+        "commands": [
+          "wellman check"
+        ],
+        "evidence": "project/ticket-007/README.md"
+      }
+    ]
+  }
+}

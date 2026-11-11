@@ -1,0 +1,130 @@
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+import lifecycle
+
+ROOT = Path(__file__).resolve().parents[1]
+CATALOG_PATH = ROOT / "errors" / "catalog.json"
+PROFILE_PATH = ROOT / "profiles" / "reference.lifecycle"
+
+
+class LifecycleHardeningTests(unittest.TestCase):
+    catalog: dict[str, lifecycle.CatalogEntry]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.catalog = lifecycle.load_catalog(CATALOG_PATH)
+
+    def test_validate_and_audit_reject_symlink_and_directory_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            link_path = tmp_dir / "linked.lifecycle"
+            link_path.symlink_to(PROFILE_PATH)
+
+            report = lifecycle.validate_path(link_path, self.catalog)
+            self.assertFalse(report.valid)
+            self.assertEqual([d.code for d in report.diagnostics], ["LFC-IO-001"])
+
+            dir_report = lifecycle.validate_path(tmp_dir, self.catalog)
+            self.assertFalse(dir_report.valid)
+            self.assertEqual([d.code for d in dir_report.diagnostics], ["LFC-IO-001"])
+
+            audit = lifecycle.audit_path(link_path, self.catalog)
+            self.assertFalse(audit["valid"])
+            self.assertEqual([d["code"] for d in audit["diagnostics"]], ["LFC-IO-001"])
+
+    def test_read_regular_bytes_enforces_size_bound(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            oversized = Path(tmp) / "oversized.lifecycle"
+            oversized.write_bytes(b"A" * 128)
+            with self.assertRaises(OSError):
+                lifecycle.read_regular_bytes(oversized, max_bytes=64)
+
+    def test_load_catalog_rejects_symlink_non_finite_and_deep_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            link_cat = tmp_dir / "catalog-link.json"
+            link_cat.symlink_to(CATALOG_PATH)
+            with self.assertRaises(lifecycle.CatalogError):
+                lifecycle.load_catalog(link_cat)
+
+            nan_cat = tmp_dir / "nan-catalog.json"
+            nan_cat.write_text(
+                '{"schema": "lifecycle.diagnostics/v1", "version": NaN, "diagnostics": []}',
+                encoding="utf-8",
+            )
+            with self.assertRaises(lifecycle.CatalogError):
+                lifecycle.load_catalog(nan_cat)
+
+            nested = "[" * 32 + "]" * 32
+            deep_cat = tmp_dir / "deep-catalog.json"
+            deep_cat.write_text(
+                f'{{"schema": "lifecycle.diagnostics/v1", "version": 1, "diagnostics": {nested}}}',
+                encoding="utf-8",
+            )
+            with self.assertRaises(lifecycle.CatalogError):
+                lifecycle.load_catalog(deep_cat)
+
+    def test_nul_bytes_are_rejected_as_syntax_diagnostics(self) -> None:
+        text = (
+            "LIFECYCLE sample VERSION 1\n"
+            "STATE START INITIAL\n"
+            "STATE DONE\x00 TERMINAL\n"
+            "EVENT GO\n"
+            "TRANSITION START -> DONE ON GO\n"
+            "END\n"
+        )
+        report = lifecycle.validate_text(text, source="nul.lifecycle", catalog=self.catalog)
+        self.assertFalse(report.valid)
+        self.assertIn("LFC-SYNTAX-002", {d.code for d in report.diagnostics})
+
+    def test_duplicate_and_invalid_declarations_do_not_pollute_compaction_audit(self) -> None:
+        text = """LIFECYCLE sample VERSION 1
+STATE START INITIAL
+STATE MID_A
+STATE MID_B
+STATE MID_A
+STATE bad_name
+STATE DONE TERMINAL
+EVENT GO_A
+EVENT GO_B
+EVENT GO_A
+EVENT 9_BAD
+TRANSITION START -> MID_A ON GO_A
+TRANSITION MID_A -> MID_B ON GO_B
+TRANSITION MID_B -> DONE ON GO_A
+END
+"""
+        audit = lifecycle.audit_compaction(text, source="dup.lifecycle", catalog=self.catalog)
+        self.assertFalse(audit["valid"])
+        codes = {f["code"] for f in audit["findings"]}
+        self.assertNotIn("LFC-COMPACT-001", codes)
+        self.assertNotIn("LFC-COMPACT-002", codes)
+
+    def test_standalone_copied_validator_rejects_symlink_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            copied_module = tmp_dir / "lifecycle.py"
+            copied_module.write_bytes((ROOT / "src" / "lifecycle.py").read_bytes())
+            link_path = tmp_dir / "linked.lifecycle"
+            link_path.symlink_to(PROFILE_PATH)
+            result = subprocess.run(
+                [sys.executable, str(copied_module), "validate", str(link_path), "--format", "json"],
+                cwd=tmp,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual([d["code"] for d in payload["diagnostics"]], ["LFC-IO-001"])
+
+
+if __name__ == "__main__":
+    unittest.main()

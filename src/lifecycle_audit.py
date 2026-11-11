@@ -8,8 +8,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from lifecycle import CatalogEntry, ValidationReport
 
-AUDIT_SCHEMA = "lifecycle.compaction-audit/v1"
-
 
 def _finding(
     code: str, document: str, message: str, suggestion: str, saved: int
@@ -24,15 +22,14 @@ def _finding(
 
 
 def audit_from_report(report: ValidationReport) -> dict[str, Any]:
+    from lifecycle import AUDIT_SCHEMA
+
     findings: list[dict[str, Any]] = []
     summaries: list[dict[str, Any]] = []
     for model in report.lifecycles:
         doc: list[dict[str, Any]] = []
-        plain = [
-            s.name
-            for s in model.uncompacted_states
-            if not s.initial and not s.terminal
-        ]
+        raw_states = model.uncompacted["states"]
+        plain = [s.name for s in raw_states if not s.initial and not s.terminal]
         if len(plain) >= 3:
             doc.append(
                 _finding(
@@ -43,9 +40,7 @@ def audit_from_report(report: ValidationReport) -> dict[str, Any]:
                     len(plain) - 1,
                 )
             )
-        terms = [
-            s.name for s in model.uncompacted_states if not s.initial and s.terminal
-        ]
+        terms = [s.name for s in raw_states if not s.initial and s.terminal]
         if len(terms) >= 2:
             doc.append(
                 _finding(
@@ -56,8 +51,8 @@ def audit_from_report(report: ValidationReport) -> dict[str, Any]:
                     len(terms) - 1,
                 )
             )
-        if len(model.uncompacted_events) >= 3:
-            ev = model.uncompacted_events
+        ev = model.uncompacted["events"]
+        if len(ev) >= 3:
             doc.append(
                 _finding(
                     "LFC-COMPACT-002",
@@ -67,8 +62,8 @@ def audit_from_report(report: ValidationReport) -> dict[str, Any]:
                     len(ev) - 1,
                 )
             )
-        if len(model.uncompacted_evidence) >= 3:
-            evd = model.uncompacted_evidence
+        evd = model.uncompacted["evidence"]
+        if len(evd) >= 3:
             doc.append(
                 _finding(
                     "LFC-COMPACT-003",
@@ -79,24 +74,28 @@ def audit_from_report(report: ValidationReport) -> dict[str, Any]:
                 )
             )
         tr_groups: dict[tuple[str, str, str | None], list[str]] = {}
-        for tr in model.uncompacted_transitions:
+        for tr in model.uncompacted["transitions"]:
             grp = tr_groups.setdefault((tr.target, tr.event, tr.evidence), [])
             if tr.source not in grp:
                 grp.append(tr.source)
         for (tgt, ev_name, req_ev), srcs in tr_groups.items():
             if len(srcs) >= 2:
                 req = f" REQUIRES {req_ev}" if req_ev else ""
+                msg = (
+                    f"{len(srcs)} transitions into {tgt} on {ev_name} "
+                    "share identical target/event/evidence"
+                )
                 doc.append(
                     _finding(
                         "LFC-COMPACT-004",
                         model.name,
-                        f"{len(srcs)} transitions into {tgt} on {ev_name} share identical target/event/evidence",
+                        msg,
                         f"TRANSITION [{', '.join(srcs)}] -> {tgt} ON {ev_name}{req}",
                         len(srcs) - 1,
                     )
                 )
         rj_groups: dict[tuple[str, str], list[str]] = {}
-        for rj in model.uncompacted_rejects:
+        for rj in model.uncompacted["rejects"]:
             rgrp = rj_groups.setdefault((rj.event, rj.error), [])
             if rj.state not in rgrp:
                 rgrp.append(rj.state)
@@ -120,11 +119,11 @@ def audit_from_report(report: ValidationReport) -> dict[str, Any]:
                 "evidence_count": len(model.evidence),
                 "transition_count": len(model.transitions),
                 "reject_count": len(model.rejects),
-                "batch_states": model.batch_state_count,
-                "batch_events": model.batch_event_count,
-                "batch_evidence": model.batch_evidence_count,
-                "state_set_transitions": model.state_set_transition_count,
-                "state_set_rejects": model.state_set_reject_count,
+                "batch_states": model.batched["states"],
+                "batch_events": model.batched["events"],
+                "batch_evidence": model.batched["evidence"],
+                "state_set_transitions": model.batched["transitions"],
+                "state_set_rejects": model.batched["rejects"],
                 "finding_count": len(doc),
             }
         )

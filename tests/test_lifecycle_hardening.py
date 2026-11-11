@@ -23,6 +23,14 @@ class LifecycleHardeningTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.catalog = lifecycle.load_catalog(CATALOG_PATH)
 
+    def test_all_modules_stay_strictly_under_500_lines(self) -> None:
+        for folder in (ROOT / "src", ROOT / "tests"):
+            for py_file in sorted(folder.glob("*.py")):
+                line_count = len(py_file.read_text(encoding="utf-8").splitlines())
+                self.assertLess(
+                    line_count, 500, f"{py_file.name} exceeded 500 lines ({line_count})"
+                )
+
     def test_validate_and_audit_reject_symlink_and_directory_paths(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_dir = Path(tmp)
@@ -81,7 +89,9 @@ class LifecycleHardeningTests(unittest.TestCase):
             with self.assertRaises(lifecycle.CatalogError):
                 lifecycle.load_catalog(overflow_cat)
 
-    def test_huge_version_digits_and_fifo_fail_closed_without_crash_or_hang(self) -> None:
+    def test_huge_version_digits_and_fifo_fail_closed_without_crash_or_hang(
+        self,
+    ) -> None:
         huge_digits = "1" + ("0" * 5000)
         text = (
             f"LIFECYCLE sample VERSION {huge_digits}\n"
@@ -91,11 +101,11 @@ class LifecycleHardeningTests(unittest.TestCase):
             "TRANSITION START -> DONE ON GO\n"
             "END\n"
         )
-        report = lifecycle.validate_text(text, source="huge.lifecycle", catalog=self.catalog)
+        report = lifecycle.validate_text(
+            text, source="huge.lifecycle", catalog=self.catalog
+        )
         self.assertFalse(report.valid)
         self.assertIn("LFC-MODEL-001", {d.code for d in report.diagnostics})
-
-        import os
 
         if hasattr(os, "mkfifo"):
             with tempfile.TemporaryDirectory() as tmp:
@@ -103,7 +113,9 @@ class LifecycleHardeningTests(unittest.TestCase):
                 os.mkfifo(fifo)
                 fifo_report = lifecycle.validate_path(fifo, self.catalog)
                 self.assertFalse(fifo_report.valid)
-                self.assertEqual([d.code for d in fifo_report.diagnostics], ["LFC-IO-001"])
+                self.assertEqual(
+                    [d.code for d in fifo_report.diagnostics], ["LFC-IO-001"]
+                )
 
     def test_nul_bytes_are_rejected_as_syntax_diagnostics(self) -> None:
         text = (
@@ -114,11 +126,15 @@ class LifecycleHardeningTests(unittest.TestCase):
             "TRANSITION START -> DONE ON GO\n"
             "END\n"
         )
-        report = lifecycle.validate_text(text, source="nul.lifecycle", catalog=self.catalog)
+        report = lifecycle.validate_text(
+            text, source="nul.lifecycle", catalog=self.catalog
+        )
         self.assertFalse(report.valid)
         self.assertIn("LFC-SYNTAX-002", {d.code for d in report.diagnostics})
 
-    def test_duplicate_and_invalid_declarations_do_not_pollute_compaction_audit(self) -> None:
+    def test_duplicate_and_invalid_declarations_do_not_pollute_compaction_audit(
+        self,
+    ) -> None:
         text = """LIFECYCLE sample VERSION 1
 STATE START INITIAL
 STATE MID_A
@@ -135,7 +151,9 @@ TRANSITION MID_A -> MID_B ON GO_B
 TRANSITION MID_B -> DONE ON GO_A
 END
 """
-        audit = lifecycle.audit_compaction(text, source="dup.lifecycle", catalog=self.catalog)
+        audit = lifecycle.audit_compaction(
+            text, source="dup.lifecycle", catalog=self.catalog
+        )
         self.assertFalse(audit["valid"])
         codes = {f["code"] for f in audit["findings"]}
         self.assertNotIn("LFC-COMPACT-001", codes)
@@ -149,7 +167,14 @@ END
             link_path = tmp_dir / "linked.lifecycle"
             link_path.symlink_to(PROFILE_PATH)
             result = subprocess.run(
-                [sys.executable, str(copied_module), "validate", str(link_path), "--format", "json"],
+                [
+                    sys.executable,
+                    str(copied_module),
+                    "validate",
+                    str(link_path),
+                    "--format",
+                    "json",
+                ],
                 cwd=tmp,
                 check=False,
                 capture_output=True,
@@ -159,42 +184,57 @@ END
         payload = json.loads(result.stdout)
         self.assertEqual([d["code"] for d in payload["diagnostics"]], ["LFC-IO-001"])
 
-    def test_lone_surrogates_and_control_bytes_fail_closed_in_bundle_and_catalog(self) -> None:
+    def test_lone_surrogates_and_control_bytes_fail_closed_in_bundle_and_catalog(
+        self,
+    ) -> None:
         surrogate_bundle = (
             "LIFECYCLE sample VERSION 1\n"
-            "DESCRIPTION \"bad \ud800 text\"\n"
+            'DESCRIPTION "bad \ud800 text"\n'
             "STATE START INITIAL\n"
             "STATE DONE TERMINAL\n"
             "EVENT GO\n"
             "TRANSITION START -> DONE ON GO\n"
             "END\n"
         )
-        rep = lifecycle.validate_text(surrogate_bundle, source="surrogate.lifecycle", catalog=self.catalog)
+        rep = lifecycle.validate_text(
+            surrogate_bundle, source="surrogate.lifecycle", catalog=self.catalog
+        )
         self.assertFalse(rep.valid)
         self.assertEqual([d.code for d in rep.diagnostics], ["LFC-SYNTAX-001"])
 
         ctrl_bundle = (
             "LIFECYCLE sample VERSION 1\n"
-            "DESCRIPTION \"bad \x1b escape\"\n"
+            'DESCRIPTION "bad \x1b escape"\n'
             "STATE START INITIAL\n"
             "STATE DONE TERMINAL\n"
             "EVENT GO\n"
             "TRANSITION START -> DONE ON GO\n"
             "END\n"
         )
-        ctrl_rep = lifecycle.validate_text(ctrl_bundle, source="ctrl.lifecycle", catalog=self.catalog)
+        ctrl_rep = lifecycle.validate_text(
+            ctrl_bundle, source="ctrl.lifecycle", catalog=self.catalog
+        )
         self.assertFalse(ctrl_rep.valid)
         self.assertIn("LFC-SYNTAX-002", {d.code for d in ctrl_rep.diagnostics})
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_dir = Path(tmp)
-            huge_int_cat = tmp_dir / "huge-int-catalog.json"
-            huge_int_cat.write_text(
-                '{"schema": "lifecycle.diagnostics/v1", "version": ' + ("9" * 400) + ', "diagnostics": []}',
-                encoding="utf-8",
-            )
-            with self.assertRaises(lifecycle.CatalogError):
-                lifecycle.load_catalog(huge_int_cat)
+            for digits in (310, 400, 5000):
+                huge_int_cat = tmp_dir / f"huge-{digits}-catalog.json"
+                huge_int_cat.write_text(
+                    '{"schema": "lifecycle.diagnostics/v1", "version": '
+                    + ("9" * digits)
+                    + ', "diagnostics": []}',
+                    encoding="utf-8",
+                )
+                with (
+                    self.subTest(digits=digits),
+                    self.assertRaisesRegex(
+                        lifecycle.CatalogError,
+                        "JSON integer magnitude exceeds finite range",
+                    ),
+                ):
+                    lifecycle.load_catalog(huge_int_cat)
 
             surrogate_cat = tmp_dir / "surrogate-catalog.json"
             surrogate_cat.write_text(
@@ -204,7 +244,9 @@ END
             with self.assertRaises(lifecycle.CatalogError):
                 lifecycle.load_catalog(surrogate_cat)
 
-    def test_read_regular_bytes_enforces_max_bytes_types_inode_swap_and_symlink_ancestors(self) -> None:
+    def test_read_regular_bytes_enforces_max_bytes_types_inode_swap_and_symlink_ancestors(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             sample = base / "ok.lifecycle"
@@ -233,22 +275,65 @@ END
                     )
                 )
 
-            with mock.patch("os.fstat", side_effect=fake_fstat), self.assertRaises(OSError):
+            with (
+                mock.patch("os.fstat", side_effect=fake_fstat),
+                self.assertRaises(OSError),
+            ):
                 lifecycle.read_regular_bytes(sample)
 
             outside = base / "outside"
             outside.mkdir()
-            (outside / "secret.lifecycle").write_bytes(PROFILE_PATH.read_bytes())
+            (outside / "clean.lifecycle").write_bytes(PROFILE_PATH.read_bytes())
             work = base / "work"
             work.mkdir()
             (work / "symdir").symlink_to(outside)
+            sub_dir = work / "sub"
+            sub_dir.mkdir()
             old_cwd = Path.cwd()
             try:
                 os.chdir(work)
                 with self.assertRaises(OSError):
-                    lifecycle.read_regular_bytes(Path("symdir/secret.lifecycle"))
+                    lifecycle.read_regular_bytes(Path("symdir/clean.lifecycle"))
+                with self.assertRaises(OSError):
+                    lifecycle.read_regular_bytes(
+                        Path("symdir/../outside/clean.lifecycle")
+                    )
+                os.chdir(sub_dir)
+                with self.assertRaises(OSError):
+                    lifecycle.read_regular_bytes(Path("../symdir/clean.lifecycle"))
+                with self.assertRaises(OSError):
+                    lifecycle.read_regular_bytes(
+                        Path("../symdir/../outside/clean.lifecycle")
+                    )
             finally:
                 os.chdir(old_cwd)
+
+    def test_malformed_nested_brackets_emit_syntax_diagnostic(self) -> None:
+        for bad_stmt in (
+            "STATES [[MID_A, MID_B]",
+            "STATES [MID_A, MID_B]]",
+            "EVENTS [[GO, STOP]",
+            "EVENTS [GO, STOP]]",
+            "TRANSITION [[START, DONE] -> DONE ON GO",
+            "TRANSITION [START, DONE]] -> DONE ON GO",
+            "REJECT [[START, DONE] ON GO WITH DEMO-ERR-001",
+            "REJECT [START, DONE]] ON GO WITH DEMO-ERR-001",
+        ):
+            bundle = (
+                "LIFECYCLE sample VERSION 1\n"
+                "STATE START INITIAL\n"
+                "STATE DONE TERMINAL\n"
+                "EVENT GO\n"
+                f"{bad_stmt}\n"
+                "TRANSITION START -> DONE ON GO\n"
+                "END\n"
+            )
+            rep = lifecycle.validate_text(
+                bundle, source="brackets.lifecycle", catalog=self.catalog
+            )
+            with self.subTest(stmt=bad_stmt):
+                self.assertFalse(rep.valid)
+                self.assertIn("LFC-SYNTAX-002", [d.code for d in rep.diagnostics])
 
     def test_regex_anchors_reject_leading_newlines(self) -> None:
         self.assertIsNone(lifecycle.IDENTIFIER.fullmatch("\nSTART"))
@@ -267,12 +352,18 @@ END
             deep_sym_target = sym_dir / "nested" / "bundle.lifecycle"
             with self.assertRaises(OSError):
                 lifecycle.read_regular_bytes(deep_sym_target)
+            with self.assertRaises(OSError):
+                lifecycle.read_regular_bytes(
+                    Path(f"{sym_dir}/../real_dir/nested/bundle.lifecycle")
+                )
             rep = lifecycle.validate_path(deep_sym_target, self.catalog)
             self.assertFalse(rep.valid)
             self.assertEqual([d.code for d in rep.diagnostics], ["LFC-IO-001"])
 
         oversized = "a" * (lifecycle.MAX_INPUT_BYTES + 1)
-        over_rep = lifecycle.validate_text(oversized, source="mem", catalog=self.catalog)
+        over_rep = lifecycle.validate_text(
+            oversized, source="mem", catalog=self.catalog
+        )
         self.assertFalse(over_rep.valid)
         self.assertEqual([d.code for d in over_rep.diagnostics], ["LFC-IO-001"])
 

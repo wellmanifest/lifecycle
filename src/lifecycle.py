@@ -139,8 +139,10 @@ class ValidationReport:
 def read_regular_bytes(path: Path, max_bytes: int = MAX_INPUT_BYTES) -> bytes:
     if type(max_bytes) is not int or max_bytes < 1:
         raise ValueError("max_bytes must be a positive integer")
-    ancestors = [Path(*path.parts[:i]) for i in range(1, len(path.parts))] if not path.is_absolute() else [a for a in path.parents if len(a.parts) > 2]
-    if any(anc.is_symlink() for anc in ancestors):
+    path = Path(path)
+    raw_ancs = [Path(*path.parts[:i]) for i in range(3 if path.is_absolute() else 1, len(path.parts)) if path.parts[i - 1] not in {".", ".."}]
+    abs_ancs = [a for a in Path(os.path.abspath(os.fspath(path))).parents if len(a.parts) > 2]
+    if any(anc.is_symlink() for anc in [*raw_ancs, *abs_ancs]):
         raise OSError(f"refusing symlink ancestor for {path}")
     st = os.lstat(path)
     if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
@@ -178,12 +180,12 @@ class Emitter:
 
 
 def _extract_bracketed_list(tokens: list[str], start: int) -> tuple[list[str], int] | None:
-    if start >= len(tokens) or not tokens[start].startswith("["):
+    if start >= len(tokens) or not tokens[start].startswith("[") or "[" in tokens[start][1:]:
         return None
     end = -1
     for idx in range(start, len(tokens)):
         if "]" in tokens[idx]:
-            if not tokens[idx].endswith("]") or "[" in tokens[idx][1:]:
+            if not tokens[idx].endswith("]") or "[" in tokens[idx][1:] or "]" in tokens[idx][:-1]:
                 return None
             end = idx
             break

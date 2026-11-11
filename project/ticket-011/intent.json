@@ -1,0 +1,93 @@
+{
+  "allowedPaths": [
+    "project/ticket-010/README.md",
+    "project/ticket-011/**",
+    "TODO.md",
+    "project/TICKETS.md",
+    "src/lifecycle.py",
+    "src/lifecycle_catalog.py",
+    "tests/test_lifecycle_hardening.py"
+  ],
+  "classification": {
+    "kind": "BUG",
+    "origin": "health",
+    "priority": "P1"
+  },
+  "conflictsWith": [],
+  "delivery": {
+    "acceptedBaseSha": "991023eaab87192e2fdb2a286f760a8ec432e110",
+    "architecture": {
+      "components": [
+        {
+          "name": "lifecycle-validator",
+          "paths": [
+            "src/lifecycle.py",
+            "src/lifecycle_catalog.py"
+          ]
+        },
+        {
+          "name": "lifecycle-tests",
+          "paths": [
+            "tests/test_lifecycle_hardening.py"
+          ]
+        }
+      ],
+      "dataChanges": [],
+      "decision": "Check both raw path prefixes and os.path.abspath parents in read_regular_bytes, reject nested brackets in _extract_bracketed_list, bound JSON integer digits before int() conversion in load_catalog_impl, keep src/lifecycle.py standalone-copyable and below 500 lines, and mark merged ticket-010 DONE.",
+      "interfaceChanges": [],
+      "responsibilityChanges": false,
+      "rollback": "Revert the ticket-011 branch commit via protected PR delivery.",
+      "status": "accepted",
+      "ui": {
+        "evidence": [],
+        "impact": "none",
+        "states": []
+      }
+    },
+    "budgets": {
+      "maxAffectedComponents": 2,
+      "maxImplementationFiles": 4,
+      "maxPublicInterfaceChanges": 0,
+      "maxRuntimeDependencies": 0
+    },
+    "complexity": "S",
+    "estimatedMinutes": 20,
+    "nonGoals": [
+      "No runtime dependency additions",
+      "No Lifecycle DSL v1 grammar or schema changes"
+    ],
+    "outcome": "Deterministic rejection of relative/cwd/dotdot symlink-parent traversal, malformed nested bracket tokens, and oversized JSON catalog integers before int() conversion, with all modules under 500 lines and merged ticket-010 closed.",
+    "runtimeDependencies": [],
+    "targetBranch": "main",
+    "validation": [
+      {
+        "commands": [
+          "ruff check --no-cache src tests",
+          "PYTHONPATH=src pytest -q -p no:cacheprovider"
+        ],
+        "criterion": "AC-01",
+        "evidence": "project/ticket-011/README.md"
+      },
+      {
+        "commands": [
+          "./project/governance-check.sh --base origin/main",
+          "wellman check"
+        ],
+        "criterion": "AC-02",
+        "evidence": "project/ticket-011/README.md"
+      }
+    ]
+  },
+  "dependsOn": [],
+  "forbiddenPaths": [
+    "project/ticket-*/user-*.md"
+  ],
+  "integrationTicket": null,
+  "schema": "new-project.intent/v3",
+  "stacks": [
+    "python"
+  ],
+  "summary": "Harden lifecycle relative symlink traversal, bracket syntax, and catalog integer bounds",
+  "ticket": "ticket-011",
+  "workstream": "application"
+}

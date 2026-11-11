@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import lifecycle
 
@@ -156,6 +158,102 @@ END
         self.assertEqual(result.returncode, 1, result.stderr)
         payload = json.loads(result.stdout)
         self.assertEqual([d["code"] for d in payload["diagnostics"]], ["LFC-IO-001"])
+
+    def test_lone_surrogates_and_control_bytes_fail_closed_in_bundle_and_catalog(self) -> None:
+        surrogate_bundle = (
+            "LIFECYCLE sample VERSION 1\n"
+            "DESCRIPTION \"bad \ud800 text\"\n"
+            "STATE START INITIAL\n"
+            "STATE DONE TERMINAL\n"
+            "EVENT GO\n"
+            "TRANSITION START -> DONE ON GO\n"
+            "END\n"
+        )
+        rep = lifecycle.validate_text(surrogate_bundle, source="surrogate.lifecycle", catalog=self.catalog)
+        self.assertFalse(rep.valid)
+        self.assertEqual([d.code for d in rep.diagnostics], ["LFC-SYNTAX-001"])
+
+        ctrl_bundle = (
+            "LIFECYCLE sample VERSION 1\n"
+            "DESCRIPTION \"bad \x1b escape\"\n"
+            "STATE START INITIAL\n"
+            "STATE DONE TERMINAL\n"
+            "EVENT GO\n"
+            "TRANSITION START -> DONE ON GO\n"
+            "END\n"
+        )
+        ctrl_rep = lifecycle.validate_text(ctrl_bundle, source="ctrl.lifecycle", catalog=self.catalog)
+        self.assertFalse(ctrl_rep.valid)
+        self.assertIn("LFC-SYNTAX-002", {d.code for d in ctrl_rep.diagnostics})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            huge_int_cat = tmp_dir / "huge-int-catalog.json"
+            huge_int_cat.write_text(
+                '{"schema": "lifecycle.diagnostics/v1", "version": ' + ("9" * 400) + ', "diagnostics": []}',
+                encoding="utf-8",
+            )
+            with self.assertRaises(lifecycle.CatalogError):
+                lifecycle.load_catalog(huge_int_cat)
+
+            surrogate_cat = tmp_dir / "surrogate-catalog.json"
+            surrogate_cat.write_text(
+                '{"schema": "lifecycle.diagnostics/v1", "version": 1, "diagnostics": [{"code": "\\ud800"}]}',
+                encoding="utf-8",
+            )
+            with self.assertRaises(lifecycle.CatalogError):
+                lifecycle.load_catalog(surrogate_cat)
+
+    def test_read_regular_bytes_enforces_max_bytes_types_inode_swap_and_symlink_ancestors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            sample = base / "ok.lifecycle"
+            sample.write_bytes(PROFILE_PATH.read_bytes())
+
+            for bad_max in (True, False, 0, -1):
+                with self.subTest(max_bytes=bad_max), self.assertRaises(ValueError):
+                    lifecycle.read_regular_bytes(sample, max_bytes=bad_max)  # type: ignore[arg-type]
+
+            real_fstat = os.fstat
+
+            def fake_fstat(fd: int) -> os.stat_result:
+                st = real_fstat(fd)
+                return os.stat_result(
+                    (
+                        st.st_mode,
+                        st.st_ino + 123456,
+                        st.st_dev,
+                        st.st_nlink,
+                        st.st_uid,
+                        st.st_gid,
+                        st.st_size,
+                        st.st_atime,
+                        st.st_mtime,
+                        st.st_ctime,
+                    )
+                )
+
+            with mock.patch("os.fstat", side_effect=fake_fstat), self.assertRaises(OSError):
+                lifecycle.read_regular_bytes(sample)
+
+            outside = base / "outside"
+            outside.mkdir()
+            (outside / "secret.lifecycle").write_bytes(PROFILE_PATH.read_bytes())
+            work = base / "work"
+            work.mkdir()
+            (work / "symdir").symlink_to(outside)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(work)
+                with self.assertRaises(OSError):
+                    lifecycle.read_regular_bytes(Path("symdir/secret.lifecycle"))
+            finally:
+                os.chdir(old_cwd)
+
+    def test_regex_anchors_reject_leading_newlines(self) -> None:
+        self.assertIsNone(lifecycle.IDENTIFIER.fullmatch("\nSTART"))
+        self.assertIsNone(lifecycle.LIFECYCLE_NAME.fullmatch("\nsample"))
+        self.assertIsNone(lifecycle.CORE_CODE.fullmatch("\nLFC-IO-001"))
 
 
 if __name__ == "__main__":

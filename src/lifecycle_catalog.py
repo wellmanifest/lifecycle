@@ -3,34 +3,69 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from lifecycle import CatalogEntry
 
-CATALOG_SCHEMA = "lifecycle.diagnostics/v1"
-SEVERITIES = {"INFO", "WARNING", "ERROR", "CRITICAL"}
-CORE_CODE = re.compile(r"^LFC-[A-Z]+-[0-9]{3}$")
+MAX_CATALOG_DEPTH = 16
+
+
+def _check_json_depth(value: Any, max_depth: int = MAX_CATALOG_DEPTH) -> None:
+    from lifecycle import CatalogError
+
+    stack: list[tuple[Any, int]] = [(value, 0)]
+    while stack:
+        current, depth = stack.pop()
+        if isinstance(current, dict):
+            if depth >= max_depth:
+                raise CatalogError(f"LFC-CATALOG-001: JSON nesting exceeds {max_depth}")
+            for key, child in current.items():
+                if not isinstance(key, str):
+                    raise CatalogError("LFC-CATALOG-001: JSON object key must be a string")
+                stack.append((child, depth + 1))
+        elif isinstance(current, list):
+            if depth >= max_depth:
+                raise CatalogError(f"LFC-CATALOG-001: JSON nesting exceeds {max_depth}")
+            for child in current:
+                stack.append((child, depth + 1))
 
 
 def load_catalog_impl(path: Path) -> dict[str, CatalogEntry]:
-    from lifecycle import REQUIRED_CORE_CODES, CatalogEntry, CatalogError
+    from lifecycle import (
+        CATALOG_SCHEMA,
+        CORE_CODE,
+        REQUIRED_CORE_CODES,
+        SEVERITIES,
+        CatalogEntry,
+        CatalogError,
+        read_regular_bytes,
+    )
 
     def strict_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         obj: dict[str, Any] = {}
         for key, val in pairs:
+            if not isinstance(key, str):
+                raise CatalogError("LFC-CATALOG-001: JSON object key must be a string")
             if key in obj:
                 raise CatalogError(f"LFC-CATALOG-001: duplicate JSON key {key!r}")
             obj[key] = val
         return obj
 
+    def reject_constant(token: str) -> Any:
+        raise CatalogError(f"LFC-CATALOG-001: non-finite JSON constant {token!r}")
+
     try:
-        raw = path.read_text(encoding="utf-8")
-        document = json.loads(raw, object_pairs_hook=strict_object)
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raw = read_regular_bytes(path).decode("utf-8")
+        document = json.loads(
+            raw, object_pairs_hook=strict_object, parse_constant=reject_constant
+        )
+    except CatalogError:
+        raise
+    except (OSError, UnicodeError, json.JSONDecodeError, RecursionError) as error:
         raise CatalogError(f"LFC-CATALOG-001: cannot load {path}: {error}") from error
+    _check_json_depth(document)
     if not isinstance(document, dict) or set(document) != {
         "schema",
         "version",

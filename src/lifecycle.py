@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shlex
+import stat
 import sys
 from collections import deque
 from collections.abc import Iterable
@@ -13,6 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, NamedTuple
 
+MAX_INPUT_BYTES = 4 * 1024 * 1024
 CATALOG_SCHEMA = "lifecycle.diagnostics/v1"
 REPORT_SCHEMA = "lifecycle.validation/v1"
 AUDIT_SCHEMA = "lifecycle.compaction-audit/v1"
@@ -115,23 +118,19 @@ class Lifecycle:
     transitions: list[Transition] = field(default_factory=list)
     rejects: list[Reject] = field(default_factory=list)
     errors: dict[str, ProfileError] = field(default_factory=dict)
-    uncompacted_states: list[State] = field(default_factory=list)
-    uncompacted_events: list[str] = field(default_factory=list)
-    uncompacted_evidence: list[str] = field(default_factory=list)
-    uncompacted_transitions: list[Transition] = field(default_factory=list)
-    uncompacted_rejects: list[Reject] = field(default_factory=list)
-    batch_state_count: int = 0
-    batch_event_count: int = 0
-    batch_evidence_count: int = 0
-    state_set_transition_count: int = 0
-    state_set_reject_count: int = 0
+    uncompacted: dict[str, list[Any]] = field(
+        default_factory=lambda: {"states": [], "events": [], "evidence": [], "transitions": [], "rejects": []}
+    )
+    batched: dict[str, int] = field(
+        default_factory=lambda: {"states": 0, "events": 0, "evidence": 0, "transitions": 0, "rejects": 0}
+    )
 
     def summary(self) -> dict[str, Any]:
-        initial = sorted(s.name for s in self.states.values() if s.initial)
-        terminal = sorted(s.name for s in self.states.values() if s.terminal)
+        ini = sorted(s.name for s in self.states.values() if s.initial)
+        trm = sorted(s.name for s in self.states.values() if s.terminal)
         return {
-            "name": self.name, "version": self.version, "initial_state": initial[0] if len(initial) == 1 else None,
-            "terminal_states": terminal, "state_count": len(self.states), "event_count": len(self.events),
+            "name": self.name, "version": self.version, "initial_state": ini[0] if len(ini) == 1 else None,
+            "terminal_states": trm, "state_count": len(self.states), "event_count": len(self.events),
             "evidence_count": len(self.evidence), "transition_count": len(self.transitions),
             "reject_count": len(self.rejects), "error_count": len(self.errors),
         }
@@ -151,9 +150,28 @@ class ValidationReport:
         ordered = sorted(self.diagnostics, key=lambda d: (d.line, d.code, d.document or "", d.detail))
         return {
             "schema": REPORT_SCHEMA, "status": "valid" if self.valid else "invalid", "source": self.source,
-            "lifecycle_count": len(self.lifecycles), "lifecycles": [item.summary() for item in self.lifecycles],
-            "diagnostics": [item.as_dict() for item in ordered],
+            "lifecycle_count": len(self.lifecycles), "lifecycles": [x.summary() for x in self.lifecycles],
+            "diagnostics": [x.as_dict() for x in ordered],
         }
+
+
+def read_regular_bytes(path: Path, max_bytes: int = MAX_INPUT_BYTES) -> bytes:
+    if path.is_symlink():
+        raise OSError("symlinked input path is forbidden")
+    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > max_bytes:
+            raise OSError("input must be a regular file within maximum size")
+        chunks, total = [], 0
+        while chunk := os.read(fd, 65536):
+            total += len(chunk)
+            if total > max_bytes:
+                raise OSError("input file exceeds maximum size")
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
 
 
 def load_catalog(path: Path) -> dict[str, CatalogEntry]:
@@ -168,39 +186,52 @@ class Emitter:
     def emit(self, code: str, line: int, detail: str, document: str | None = None) -> None:
         if code not in self.catalog:
             raise CatalogError(f"LFC-CATALOG-001: emitted unknown core code {code}")
-        entry = self.catalog[code]
-        self.diagnostics.append(Diagnostic(code, entry.severity, entry.message, self.path, line, document, detail))
+        e = self.catalog[code]
+        self.diagnostics.append(Diagnostic(code, e.severity, e.message, self.path, line, document, detail))
 
 
-def _extract_bracketed_list(tokens: list[str], start_index: int) -> tuple[list[str], int] | None:
-    if start_index >= len(tokens) or not tokens[start_index].startswith("["):
+def _extract_bracketed_list(tokens: list[str], start: int) -> tuple[list[str], int] | None:
+    if start >= len(tokens) or not tokens[start].startswith("["):
         return None
-    end_index = -1
-    for idx in range(start_index, len(tokens)):
+    end = -1
+    for idx in range(start, len(tokens)):
         if "]" in tokens[idx]:
             if not tokens[idx].endswith("]") or "[" in tokens[idx][1:]:
                 return None
-            end_index = idx
+            end = idx
             break
-        if idx > start_index and "[" in tokens[idx]:
+        if idx > start and "[" in tokens[idx]:
             return None
-    if end_index == -1:
+    inner = "" if end == -1 else " ".join(tokens[start : end + 1])[1:-1].strip()
+    items = [raw.strip() for raw in inner.split(",")] if inner else []
+    return None if not items or any(not x or any(c.isspace() for c in x) for x in items) else (items, end + 1)
+
+
+def _parse_subjects(tokens: list[str], allow_single: bool, allow_batch: bool) -> tuple[list[str], int, bool] | None:
+    if len(tokens) < 2:
         return None
-    inner = " ".join(tokens[start_index : end_index + 1])[1:-1].strip()
-    if not inner:
-        return None
-    items = [raw.strip() for raw in inner.split(",")]
-    return None if any(not x or any(ch.isspace() for ch in x) for x in items) else (items, end_index + 1)
+    if tokens[1].startswith("["):
+        res = _extract_bracketed_list(tokens, 1) if allow_batch else None
+        return (res[0], res[1], True) if res is not None else None
+    return ([tokens[1]], 2, False) if allow_single else None
 
 
 def _parse_statement(tokens: list[str], line: int, model: Lifecycle, emitter: Emitter) -> None:
-    def declare(values: dict[str, Any], name: str, val: Any, kind: str) -> None:
+    def declare(values: dict[str, Any], name: str, val: Any, kind: str) -> bool:
         if IDENTIFIER.fullmatch(name) is None:
             emitter.emit("LFC-MODEL-001", line, f"invalid {kind} identifier {name!r}", model.name)
-        elif name in values:
+            return False
+        if name in values:
             emitter.emit("LFC-MODEL-002", line, f"duplicate {kind} {name}", model.name)
+            return False
+        values[name] = val
+        return True
+
+    def record(bucket: str, item: Any, is_batch: bool) -> None:
+        if is_batch:
+            model.batched[bucket] += 1
         else:
-            values[name] = val
+            model.uncompacted[bucket].append(item)
 
     kw = tokens[0]
     if kw == "DESCRIPTION":
@@ -212,111 +243,84 @@ def _parse_statement(tokens: list[str], line: int, model: Lifecycle, emitter: Em
             model.description, model.description_line = tokens[1], line
         return
     if kw in {"STATE", "STATES"}:
-        parsed = ([tokens[1]], 2) if kw == "STATE" and len(tokens) >= 2 else _extract_bracketed_list(tokens, 1) if kw == "STATES" else None
-        if parsed is None:
+        sub = _parse_subjects(tokens, kw == "STATE", kw == "STATES")
+        mods = [] if sub is None else tokens[sub[1] :]
+        if sub is None or any(m not in {"INITIAL", "TERMINAL"} for m in mods) or len(set(mods)) != len(mods):
             emitter.emit("LFC-SYNTAX-002", line, f"{kw} syntax is invalid", model.name)
             return
-        names, mods = parsed[0], tokens[parsed[1] :]
-        if any(m not in {"INITIAL", "TERMINAL"} for m in mods) or len(set(mods)) != len(mods):
-            emitter.emit("LFC-SYNTAX-002", line, f"{kw} syntax is invalid", model.name)
-            return
-        for name in names:
+        for name in sub[0]:
             st = State(name, "INITIAL" in mods, "TERMINAL" in mods, line)
-            declare(model.states, st.name, st, "state")
-            if kw == "STATE":
-                model.uncompacted_states.append(st)
-            else:
-                model.batch_state_count += 1
+            if declare(model.states, st.name, st, "state"):
+                record("states", st, sub[2])
         return
     if kw in {"EVENT", "EVIDENCE", "EVENTS", "EVIDENCES"}:
-        kind = "event" if kw.startswith("EVENT") else "evidence"
-        target = model.events if kind == "event" else model.evidence
-        if not kw.endswith("S"):
-            if len(tokens) != 2:
-                emitter.emit("LFC-SYNTAX-002", line, f"{kw} requires one identifier", model.name)
-                return
-            declare(target, tokens[1], line, kind)
-            (model.uncompacted_events if kind == "event" else model.uncompacted_evidence).append(tokens[1])
-            return
-        parsed = _extract_bracketed_list(tokens, 1)
-        if parsed is None or parsed[1] != len(tokens):
+        is_ev, is_batch_kw = kw.startswith("EVENT"), kw.endswith("S")
+        kind, bucket, target = ("event", "events", model.events) if is_ev else ("evidence", "evidence", model.evidence)
+        sub = _parse_subjects(tokens, not is_batch_kw, is_batch_kw)
+        if sub is None or sub[1] != len(tokens):
             emitter.emit("LFC-SYNTAX-002", line, f"{kw} syntax is invalid", model.name)
             return
-        for name in parsed[0]:
-            declare(target, name, line, kind)
-            if kind == "event":
-                model.batch_event_count += 1
-            else:
-                model.batch_evidence_count += 1
+        for name in sub[0]:
+            if declare(target, name, line, kind):
+                record(bucket, name, is_batch_kw)
         return
     if kw in {"TRANSITION", "REJECT"}:
-        is_batch = len(tokens) >= 2 and tokens[1].startswith("[")
-        parsed = _extract_bracketed_list(tokens, 1) if is_batch else ([tokens[1]], 2) if len(tokens) >= 2 else None
-        if parsed is None:
+        sub = _parse_subjects(tokens, True, True)
+        if sub is None:
             emitter.emit("LFC-SYNTAX-002", line, f"{kw} syntax is invalid", model.name)
             return
-        subjects, rest = parsed[0], tokens[parsed[1] :]
+        subjects, rest, is_batch = sub[0], tokens[sub[1] :], sub[2]
         if kw == "TRANSITION":
             if len(rest) not in {4, 6} or rest[0] != "->" or rest[2] != "ON" or (len(rest) == 6 and rest[4] != "REQUIRES"):
                 emitter.emit("LFC-SYNTAX-002", line, "TRANSITION syntax is invalid", model.name)
-                return
-            tgt, ev, evd = rest[1], rest[3], (rest[5] if len(rest) == 6 else None)
-            if any(IDENTIFIER.fullmatch(x) is None for x in [*subjects, tgt, ev]):
+            elif any(not IDENTIFIER.fullmatch(x) for x in [*subjects, rest[1], rest[3]]) or (len(rest) == 6 and not IDENTIFIER.fullmatch(rest[5])):
                 emitter.emit("LFC-MODEL-001", line, "TRANSITION identifiers are invalid", model.name)
-                return
-            if evd is not None and IDENTIFIER.fullmatch(evd) is None:
-                emitter.emit("LFC-MODEL-001", line, "TRANSITION evidence identifier is invalid", model.name)
-                return
-            for src in subjects:
-                tr = Transition(src, tgt, ev, evd, line)
-                model.transitions.append(tr)
-                if is_batch:
-                    model.state_set_transition_count += 1
-                else:
-                    model.uncompacted_transitions.append(tr)
-            return
-        if len(rest) != 4 or rest[0] != "ON" or rest[2] != "WITH":
-            emitter.emit("LFC-SYNTAX-002", line, "REJECT syntax is invalid", model.name)
-            return
-        if any(IDENTIFIER.fullmatch(x) is None for x in [*subjects, rest[1]]):
-            emitter.emit("LFC-MODEL-001", line, "REJECT identifiers are invalid", model.name)
-            return
-        for st in subjects:
-            rj = Reject(st, rest[1], rest[3], line)
-            model.rejects.append(rj)
-            if is_batch:
-                model.state_set_reject_count += 1
             else:
-                model.uncompacted_rejects.append(rj)
+                evd = rest[5] if len(rest) == 6 else None
+                for src in subjects:
+                    tr = Transition(src, rest[1], rest[3], evd, line)
+                    model.transitions.append(tr)
+                    record("transitions", tr, is_batch)
+        elif len(rest) != 4 or rest[0] != "ON" or rest[2] != "WITH":
+            emitter.emit("LFC-SYNTAX-002", line, "REJECT syntax is invalid", model.name)
+        elif any(not IDENTIFIER.fullmatch(x) for x in [*subjects, rest[1]]):
+            emitter.emit("LFC-MODEL-001", line, "REJECT identifiers are invalid", model.name)
+        else:
+            for st_name in subjects:
+                rj = Reject(st_name, rest[1], rest[3], line)
+                model.rejects.append(rj)
+                record("rejects", rj, is_batch)
         return
     if kw == "ERROR":
         if len(tokens) != 6 or tokens[2] != "SEVERITY" or tokens[4] != "MESSAGE":
             emitter.emit("LFC-SYNTAX-002", line, "ERROR syntax is invalid", model.name)
-            return
-        code, sev, msg = tokens[1], tokens[3], tokens[5]
-        if PROFILE_ERROR_CODE.fullmatch(code) is None or code.startswith("LFC-") or sev not in SEVERITIES or not msg.strip():
-            emitter.emit("LFC-ERROR-001", line, f"invalid profile error {code!r}", model.name)
-        elif code in model.errors:
-            emitter.emit("LFC-MODEL-002", line, f"duplicate error {code}", model.name)
+        elif not PROFILE_ERROR_CODE.fullmatch(tokens[1]) or tokens[1].startswith("LFC-") or tokens[3] not in SEVERITIES or not tokens[5].strip():
+            emitter.emit("LFC-ERROR-001", line, f"invalid profile error {tokens[1]!r}", model.name)
+        elif tokens[1] in model.errors:
+            emitter.emit("LFC-MODEL-002", line, f"duplicate error {tokens[1]}", model.name)
         else:
-            model.errors[code] = ProfileError(code, sev, msg, line)
+            model.errors[tokens[1]] = ProfileError(tokens[1], tokens[3], tokens[5], line)
         return
     emitter.emit("LFC-SYNTAX-002", line, f"unknown statement {kw!r}", model.name)
 
 
 def parse_bundle(text: str, emitter: Emitter) -> list[Lifecycle]:
     norm = text.replace("\r\n", "\n").replace("\r", "\n")
-    raw_lines = [] if not norm else (norm[:-1].split("\n") if norm.endswith("\n") else norm.split("\n"))
+    raw_lines = [] if not norm else norm.removesuffix("\n").split("\n")
     models: list[Lifecycle] = []
     current: Lifecycle | None = None
     for line_no, raw_line in enumerate(raw_lines, start=1):
+        doc_name = current.name if current else None
+        if "\x00" in raw_line:
+            emitter.emit("LFC-SYNTAX-002", line_no, "NUL byte is forbidden", doc_name)
+            continue
         try:
             lexer = shlex.shlex(raw_line, posix=True)
             lexer.whitespace_split = True
             lexer.commenters = "#"
             tokens = list(lexer)
         except ValueError as err:
-            emitter.emit("LFC-SYNTAX-002", line_no, f"tokenization failed: {err}", current.name if current else None)
+            emitter.emit("LFC-SYNTAX-002", line_no, f"tokenization failed: {err}", doc_name)
             continue
         if not tokens:
             continue
@@ -332,19 +336,17 @@ def parse_bundle(text: str, emitter: Emitter) -> list[Lifecycle]:
             ver = int(raw_ver) if POSITIVE_INTEGER.fullmatch(raw_ver) else 0
             current = Lifecycle(name=name, version=ver, line=line_no)
             if LIFECYCLE_NAME.fullmatch(name) is None or ver != 1:
-                emitter.emit("LFC-MODEL-001", line_no, f"invalid lifecycle name or unsupported version: {name!r} v{raw_ver!r}", name)
-            continue
-        if tokens[0] == "END":
+                emitter.emit("LFC-MODEL-001", line_no, f"invalid header {name!r} v{raw_ver!r}", name)
+        elif tokens[0] == "END":
             if len(tokens) != 1 or current is None:
                 emitter.emit("LFC-DOC-001", line_no, "END without one open lifecycle")
             else:
                 models.append(current)
                 current = None
-            continue
-        if current is None:
+        elif current is None:
             emitter.emit("LFC-SYNTAX-002", line_no, "statement outside lifecycle document")
-            continue
-        _parse_statement(tokens, line_no, current, emitter)
+        else:
+            _parse_statement(tokens, line_no, current, emitter)
     if current is not None:
         emitter.emit("LFC-DOC-001", current.line, "lifecycle reaches EOF without END", current.name)
         models.append(current)
@@ -359,14 +361,13 @@ def parse_bundle(text: str, emitter: Emitter) -> list[Lifecycle]:
     return models
 
 
-def _check_ref(decl: dict[str, Any], val: str, kind: str, ln: int, doc: str, emitter: Emitter) -> None:
-    if val not in decl:
-        emitter.emit("LFC-MODEL-004", ln, f"undeclared {kind} {val}", doc)
-
-
 def validate_models(models: Iterable[Lifecycle], emitter: Emitter) -> None:
     global_errors: dict[str, tuple[str, int]] = {}
     for m in models:
+        def ref(decl: dict[str, Any], val: str, kind: str, ln: int, doc: str = m.name) -> None:
+            if val not in decl:
+                emitter.emit("LFC-MODEL-004", ln, f"undeclared {kind} {val}", doc)
+
         initials = [s for s in m.states.values() if s.initial]
         if len(initials) != 1:
             emitter.emit("LFC-MODEL-003", m.line, f"found {len(initials)} initial states", m.name)
@@ -377,8 +378,8 @@ def validate_models(models: Iterable[Lifecycle], emitter: Emitter) -> None:
             else:
                 global_errors[pe.code] = (m.name, pe.line)
         decisions: dict[tuple[str, str], tuple[str, int]] = {}
-        ordered = sorted([("transition", t) for t in m.transitions] + [("reject", r) for r in m.rejects], key=lambda x: x[1].line)
-        for kind, dec in ordered:
+        raw_decs: list[tuple[str, Transition | Reject]] = [*[("transition", t) for t in m.transitions], *[("reject", r) for r in m.rejects]]
+        for kind, dec in sorted(raw_decs, key=lambda item: item[1].line):
             st = dec.source if isinstance(dec, Transition) else dec.state
             prev_dec = decisions.get((st, dec.event))
             if prev_dec is not None:
@@ -387,17 +388,15 @@ def validate_models(models: Iterable[Lifecycle], emitter: Emitter) -> None:
                 decisions[(st, dec.event)] = (kind, dec.line)
         used_errors: set[str] = set()
         for tr in m.transitions:
-            _check_ref(m.states, tr.source, "state", tr.line, m.name, emitter)
-            _check_ref(m.states, tr.target, "state", tr.line, m.name, emitter)
-            _check_ref(m.events, tr.event, "event", tr.line, m.name, emitter)
+            for decl, val, kind in ((m.states, tr.source, "state"), (m.states, tr.target, "state"), (m.events, tr.event, "event")):
+                ref(decl, val, kind, tr.line)
             if tr.evidence is not None:
-                _check_ref(m.evidence, tr.evidence, "evidence", tr.line, m.name, emitter)
-            src_st = m.states.get(tr.source)
-            if src_st is not None and src_st.terminal:
+                ref(m.evidence, tr.evidence, "evidence", tr.line)
+            if (src_st := m.states.get(tr.source)) is not None and src_st.terminal:
                 emitter.emit("LFC-MODEL-007", tr.line, f"terminal state {src_st.name} transitions on {tr.event}", m.name)
         for rj in m.rejects:
-            _check_ref(m.states, rj.state, "state", rj.line, m.name, emitter)
-            _check_ref(m.events, rj.event, "event", rj.line, m.name, emitter)
+            ref(m.states, rj.state, "state", rj.line)
+            ref(m.events, rj.event, "event", rj.line)
             if rj.error not in m.errors:
                 emitter.emit("LFC-ERROR-002", rj.line, f"reject references undeclared error {rj.error}", m.name)
             else:
@@ -431,14 +430,12 @@ def validate_text(text: str, *, source: str, catalog: dict[str, CatalogEntry]) -
 def validate_path(path: Path, catalog: dict[str, CatalogEntry]) -> ValidationReport:
     emitter = Emitter(str(path), catalog)
     try:
-        text = path.read_bytes().decode("utf-8")
+        return validate_text(read_regular_bytes(path).decode("utf-8"), source=str(path), catalog=catalog)
     except UnicodeDecodeError as error:
         emitter.emit("LFC-SYNTAX-001", 0, str(error))
-        return ValidationReport(str(path), [], emitter.diagnostics)
     except OSError as error:
         emitter.emit("LFC-IO-001", 0, str(error))
-        return ValidationReport(str(path), [], emitter.diagnostics)
-    return validate_text(text, source=str(path), catalog=catalog)
+    return ValidationReport(str(path), [], emitter.diagnostics)
 
 
 def render_text(report: ValidationReport) -> str:
@@ -446,8 +443,7 @@ def render_text(report: ValidationReport) -> str:
         rows = [f"VALID {s['name']} v{s['version']} states={s['state_count']} events={s['event_count']} transitions={s['transition_count']} rejects={s['reject_count']}" for s in (x.summary() for x in report.lifecycles)]
         return "\n".join([*rows, f"PASS {report.source}: {len(report.lifecycles)} lifecycle(s)"])
     ordered = sorted(report.diagnostics, key=lambda d: (d.line, d.code, d.document or "", d.detail))
-    rows = [f"{d.path}:{d.line} {d.code} {d.severity}: {d.message} ({d.detail})" for d in ordered]
-    return "\n".join([*rows, f"FAIL {report.source}: {len(ordered)} diagnostic(s)"])
+    return "\n".join([*(f"{d.path}:{d.line} {d.code} {d.severity}: {d.message} ({d.detail})" for d in ordered), f"FAIL {report.source}: {len(ordered)} diagnostic(s)"])
 
 
 def audit_compaction(text: str, *, source: str = "<memory>", catalog: dict[str, CatalogEntry] | None = None) -> dict[str, Any]:

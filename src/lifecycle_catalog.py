@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from lifecycle import CatalogEntry
 
 MAX_CATALOG_DEPTH = 16
+MAX_JSON_INT_DIGITS = 309
 
 
 def _check_utf8_str(value: str) -> None:
@@ -19,7 +20,9 @@ def _check_utf8_str(value: str) -> None:
     try:
         value.encode("utf-8")
     except UnicodeEncodeError as error:
-        raise CatalogError("LFC-CATALOG-001: lone UTF-16 surrogate in JSON string") from error
+        raise CatalogError(
+            "LFC-CATALOG-001: lone UTF-16 surrogate in JSON string"
+        ) from error
 
 
 def _check_json_depth(value: Any, max_depth: int = MAX_CATALOG_DEPTH) -> None:
@@ -36,7 +39,9 @@ def _check_json_depth(value: Any, max_depth: int = MAX_CATALOG_DEPTH) -> None:
             except OverflowError:
                 ok = False
             if not ok:
-                raise CatalogError("LFC-CATALOG-001: JSON integer magnitude exceeds finite range")
+                raise CatalogError(
+                    "LFC-CATALOG-001: JSON integer magnitude exceeds finite range"
+                )
         if isinstance(current, str):
             _check_utf8_str(current)
         elif isinstance(current, dict):
@@ -44,7 +49,9 @@ def _check_json_depth(value: Any, max_depth: int = MAX_CATALOG_DEPTH) -> None:
                 raise CatalogError(f"LFC-CATALOG-001: JSON nesting exceeds {max_depth}")
             for key, child in current.items():
                 if not isinstance(key, str):
-                    raise CatalogError("LFC-CATALOG-001: JSON object key must be a string")
+                    raise CatalogError(
+                        "LFC-CATALOG-001: JSON object key must be a string"
+                    )
                 _check_utf8_str(key)
                 stack.append((child, depth + 1))
         elif isinstance(current, list):
@@ -84,17 +91,42 @@ def load_catalog_impl(path: Path) -> dict[str, CatalogEntry]:
             raise CatalogError(f"LFC-CATALOG-001: non-finite JSON float {token!r}")
         return parsed
 
+    def parse_finite_int(token: str) -> int:
+        digits = token[1:] if token.startswith(("+", "-")) else token
+        if len(digits) > MAX_JSON_INT_DIGITS:
+            raise CatalogError(
+                "LFC-CATALOG-001: JSON integer magnitude exceeds finite range"
+            )
+        parsed = int(token)
+        try:
+            ok = math.isfinite(float(parsed))
+        except OverflowError:
+            ok = False
+        if not ok:
+            raise CatalogError(
+                "LFC-CATALOG-001: JSON integer magnitude exceeds finite range"
+            )
+        return parsed
+
     try:
-        raw = read_regular_bytes(path).decode("utf-8")
+        raw = read_regular_bytes(Path(path)).decode("utf-8")
+        _check_utf8_str(raw)
         document = json.loads(
             raw,
             object_pairs_hook=strict_object,
             parse_constant=reject_constant,
             parse_float=parse_finite_float,
+            parse_int=parse_finite_int,
         )
     except CatalogError:
         raise
-    except (OSError, UnicodeError, ValueError, json.JSONDecodeError, RecursionError) as error:
+    except (
+        OSError,
+        UnicodeError,
+        ValueError,
+        json.JSONDecodeError,
+        RecursionError,
+    ) as error:
         raise CatalogError(f"LFC-CATALOG-001: cannot load {path}: {error}") from error
     _check_json_depth(document)
     if not isinstance(document, dict) or set(document) != {
